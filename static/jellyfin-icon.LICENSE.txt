@@ -1,0 +1,11 @@
+Jellyfin icon
+=============
+
+Source: https://github.com/jellyfin/jellyfin-ux
+Files: branding/web/favicons/favicon.ico, logos/SVG/jellyfin-icon--color-on-dark.svg
+Copyright: Jellyfin contributors
+License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+https://creativecommons.org/licenses/by-sa/4.0/
+
+The Jellyfin name and logo are trademarks of the Jellyfin project. This is a
+third-party downloader and is not an official Jellyfin client.

@@ -1,0 +1,81 @@
+{
+  "name": "jellyfin-downloader",
+  "version": "0.1.0",
+  "description": "Self-hosted Jellyfin movie, series and home video downloader built with ffmpeg.",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=22.17"
+  },
+  "imports": {
+    "#lib": "./src/lib/index.ts",
+    "#lib/*": "./src/lib/*",
+    "#const": "./src/const/index.ts",
+    "#core": "./src/core/index.svelte.ts",
+    "#core/*": "./src/core/*",
+    "#locales/*": "./src/locales/*",
+    "#api/*": "./src/routes/api/*"
+  },
+  "scripts": {
+    "dev": "node .dovenv/scripts/dev.ts",
+    "dev:mock": "node .dovenv/scripts/dev.ts",
+    "dev-remote": "vite dev",
+    "mock:fetch": "node .dovenv/scripts/fetch-mock-fixtures.ts",
+    "mock:server": "node .dovenv/scripts/mock-jellyfin.ts",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node --env-file-if-exists=.env build",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:ts-only": "node .dovenv/scripts/check-ts-only.ts",
+    "test": "tsx --test tests/unit/*.test.ts",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit": "pnpm audit",
+    "security:audit": "pnpm audit --prod",
+    "verify": "pnpm check && pnpm test && pnpm lint && pnpm format:check && pnpm build && pnpm security:audit",
+    "release": "release-it",
+    "release:dry": "release-it --dry-run",
+    "push": "node .dovenv/scripts/push.ts"
+  },
+  "devDependencies": {
+    "@release-it/bumper": "~8.0.1",
+    "auto-changelog": "~2.7.0",
+    "@sveltejs/adapter-node": "~6.0.5",
+    "@sveltejs/kit": "~3.4.0",
+    "@sveltejs/vite-plugin-svelte": "~7.3.1",
+    "@types/node": "~26.6.6",
+    "oxlint": "~1.94.0",
+    "prettier": "~3.10.1",
+    "prettier-plugin-svelte": "~4.2.0",
+    "release-it": "21.1.2",
+    "svelte": "~5.59.1",
+    "svelte-check": "~4.7.8",
+    "tsx": "~4.23.15",
+    "typescript": "~6.0.3",
+    "vite": "~8.3.8"
+  },
+  "author": {
+    "name": "Angelo",
+    "email": "angelo@pigeonposse.com",
+    "url": "https://github.com/angelespejo"
+  },
+  "extra": {
+    "productName": "JellyFin Downloader"
+  },
+  "homepage": "https://github.com/angelespejo/jellyfin-downloader",
+  "bugs": {
+    "url": "https://github.com/angelespejo/jellyfin-downloader/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/angelespejo/jellyfin-downloader"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/sponsors/angelespejo"
+  },
+  "license": "MIT"
+}

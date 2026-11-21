@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - svelte@5.59.0
+overrides:
+  basic-ftp@<=6.2.3: ^6.2.4

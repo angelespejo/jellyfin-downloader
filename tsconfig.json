@@ -1,0 +1,10 @@
+{
+  "extends": "$app/tsconfig",
+  "compilerOptions": {
+    "strict": true,
+    "allowJs": false,
+    "checkJs": false
+  },
+  "include": ["src", "tests", ".dovenv/scripts", ".dovenv/dev", "vite.config.ts"],
+  "exclude": [".svelte-kit", "build", "node_modules", ".dovenv/dev/fixtures"]
+}
