@@ -4,7 +4,7 @@ import { commitMessage } from './.dovenv/scripts/commits'
 /**
  * release-it configuration.
  *
- * Commit types, changelog sections and hidden types live in `.dovenv/commits.ts`
+ * Commit types, changelog sections and hidden types live in `.dovenv/scripts/commits.ts`
  * and are shared with `pnpm push`, so both always agree.
  */
 export default {
