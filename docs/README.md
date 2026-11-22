@@ -9,6 +9,7 @@ This directory contains the development and operations documentation. The root
 - [API](api.md)
 - [Jobs and persistence](jobs.md)
 - [Docker](docker.md)
+- [Docker Compose examples](docker-compose.md)
 - [Mock Jellyfin](mock-jellyfin.md)
 - [Internationalization](i18n.md)
 - [User interface](ui.md)

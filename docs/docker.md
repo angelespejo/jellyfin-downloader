@@ -1,32 +1,59 @@
 # Docker
 
-The image is a multi-stage `node:24-bookworm-slim` build. It uses pnpm for the
-build and installs Debian `ffmpeg`, `ca-certificates` and
-`fonts-dejavu-core` at runtime.
+The published image is `ghcr.io/angelespejo/jellyfin-downloader`, available for
+`linux/amd64` and `linux/arm64` and tagged `latest`, `X.Y` and `X.Y.Z`. The
+package is public, so pulling does not require `docker login`.
 
-## Compose
+It is a multi-stage `node:24-bookworm-slim` build. Debian `ffmpeg`,
+`ca-certificates` and `fonts-dejavu-core` are installed at runtime, so burn-in
+subtitles work without extra mounts.
+
+## Quick start
 
 ```bash
 cp .env.example .env
 # Set JELLYFIN_SERVER and JELLYFIN_API_KEY
 mkdir -p data
-docker compose up -d --build
+docker compose up -d
 ```
 
-`./data` is mounted at `/data`:
+The root `docker-compose.yml` pulls the published image and stores state in
+`./data`, mounted at `/data`:
 
-- `/data/settings.json` — global settings/presets;
+- `/data/settings.json` — global settings and presets;
 - `/data/jobs` — durable job state;
 - `/data/logs` — persisted JSONL logs;
 - `/data/downloads` — optional local output store.
 
-The container runs as `node` (UID 1000). Make `data/` writable by that user.
+The container runs as `node` (UID 1000). Bind-mounted directories must be
+writable by that user.
+
+Ready-made recipes, from a minimal container to Jellyfin plus GPU passthrough,
+live in [Docker Compose examples](docker-compose.md).
+
+## Connecting to Jellyfin
+
+`JELLYFIN_SERVER` is resolved inside the container, so `localhost` is the
+container itself.
+
+| Where Jellyfin runs             | Value                              |
+| ------------------------------- | ---------------------------------- |
+| Docker Desktop host             | `http://host.docker.internal:8096` |
+| Linux host, with `extra_hosts`  | `http://host.docker.internal:8096` |
+| Linux host, without extra hosts | `http://<LAN-IP>:8096`             |
+| Another compose service         | `http://<service-name>:8096`       |
+| Another machine                 | `http://<hostname-or-IP>:8096`     |
+
+On Linux, add the host gateway to the service:
+
+```yaml
+extra_hosts:
+  - 'host.docker.internal:host-gateway'
+```
 
 ## Hardware acceleration
 
-The image uses Debian ffmpeg. VideoToolbox is only available on macOS hosts
-running natively (not in the Linux container). For VAAPI/QSV, pass the render
-device and groups in compose:
+For VAAPI/QSV on Linux, pass the render device and groups:
 
 ```yaml
 devices:
@@ -36,26 +63,36 @@ group_add:
   - render
 ```
 
-Set `FFMPEG_HWACCEL=vaapi` or `qsv` to force it, or leave `auto`. NVENC requires
-the NVIDIA container toolkit and the host driver. If the encoder is listed but
-the GPU is not usable, the job retries in software.
+Then set `FFMPEG_HWACCEL=vaapi` or `qsv`, or leave `auto` so the app probes the
+container at startup.
 
-## Environment
-
-Compose reads `.env` for interpolation and passes the required variables into
-the container. `ORIGIN` should match the public URL when using a reverse proxy.
-
-If Jellyfin is on the Docker host:
-
-- Docker Desktop (macOS/Windows): `host.docker.internal`;
-- Linux: uncomment `extra_hosts` in `docker-compose.yml`.
+NVENC requires the NVIDIA container toolkit and the host driver. VideoToolbox is
+only available on macOS hosts running natively; it does not exist in the Linux
+container. If the encoder is listed but the GPU is not usable, the job retries in
+software.
 
 ## Healthcheck
 
 The image and compose file check `/api/v1/health`. The endpoint reports ffmpeg
 availability and local store status without contacting Jellyfin.
 
-## Manual build
+```bash
+docker compose ps
+curl -s http://localhost:3000/api/v1/health
+```
+
+## Updating
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Jobs are durable: a container recreated with the same `/data` volume keeps its
+state, and queued or running jobs resume. `stop_grace_period: 30s` gives the app
+time to persist state before shutdown.
+
+## Build from source
 
 ```bash
 docker build -t jellyfin-downloader .
@@ -66,4 +103,6 @@ docker run --rm -p 3000:3000 \
   jellyfin-downloader
 ```
 
-The runtime does not need `node_modules`: `node build` is self-contained.
+The runtime does not need `node_modules`: `node build` is self-contained. The
+`Publish Docker image` workflow builds and pushes the multi-arch image on `v*`
+tags.

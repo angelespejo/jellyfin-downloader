@@ -4,6 +4,21 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- `docs/docker-compose.md` with progressive examples: minimal, persistent, pinned
+  version, reverse proxy, local downloads store, GPU passthrough and a full stack
+  with Jellyfin.
+
+### Changed
+
+- The bundled `docker-compose.yml` pulls the published
+  `ghcr.io/angelespejo/jellyfin-downloader` image instead of building locally.
+- The README documents the Docker installation step by step and links to the
+  Compose examples.
+
 ## v0.1.0 - 2026-11-21
 
 ### Added

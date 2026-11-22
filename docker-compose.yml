@@ -1,50 +1,31 @@
 services:
   jellyfin-downloader:
-    build: .
-    image: jellyfin-downloader:latest
+    image: ghcr.io/angelespejo/jellyfin-downloader:${JELLYFIN_DOWNLOADER_TAG:-latest}
     container_name: jellyfin-downloader
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    ports:
+      - '${JELLYFIN_DOWNLOADER_PORT:-3000}:3000'
     environment:
-      JELLYFIN_SERVER: ${JELLYFIN_SERVER:?Define JELLYFIN_SERVER en .env}
-      JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:?Define JELLYFIN_API_KEY en .env}
-      FFMPEG_PATH: ${FFMPEG_PATH:-/usr/bin/ffmpeg}
+      JELLYFIN_SERVER: ${JELLYFIN_SERVER:?JELLYFIN_SERVER is required in .env}
+      JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:?JELLYFIN_API_KEY is required in .env}
       FFMPEG_HWACCEL: ${FFMPEG_HWACCEL:-auto}
-      FFMPEG_VAAPI_DEVICE: ${FFMPEG_VAAPI_DEVICE:-/dev/dri/renderD128}
       SERVER_LOCAL_DOWNLOADS_ENABLED: ${SERVER_LOCAL_DOWNLOADS_ENABLED:-false}
-      SERVER_LOCAL_DOWNLOADS_DIR: /data/downloads
       SERVER_LOCAL_DOWNLOADS_MAX_GB: ${SERVER_LOCAL_DOWNLOADS_MAX_GB:-0}
       SERVER_LOCAL_DOWNLOADS_TTL_DAYS: ${SERVER_LOCAL_DOWNLOADS_TTL_DAYS:-0}
-      SERVER_SETTINGS_FILE: /data/settings.json
-      SERVER_JOBS_DIR: /data/jobs
-      SERVER_LOGS_DIR: /data/logs
       SERVER_LOGS_RETENTION_DAYS: ${SERVER_LOGS_RETENTION_DAYS:-14}
       API_CORS_ORIGINS: ${API_CORS_ORIGINS:-}
       ORIGIN: ${ORIGIN:-http://localhost:3000}
       TZ: ${TZ:-UTC}
-    ports:
-      - '3000:3000'
     volumes:
-      - ./data:/data
-    restart: unless-stopped
-    init: true
-    stop_grace_period: 30s
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    # Para Linux, si Jellyfin corre en el host:
+      - ${SERVER_DATA_DIR:-./data}:/data
+    # Jellyfin on the Docker host (Linux only):
     # extra_hosts:
-    #   - "host.docker.internal:host-gateway"
-    # Hardware acceleration (VAAPI/QSV): pass the render device through.
+    #   - 'host.docker.internal:host-gateway'
+    # VAAPI/QSV hardware acceleration:
     # devices:
     #   - /dev/dri:/dev/dri
     # group_add:
-    #   - "video"
-    #   - "render"
+    #   - video
+    #   - render

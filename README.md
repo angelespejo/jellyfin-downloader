@@ -24,6 +24,29 @@ whole series with one configuration.
 The interface is available in **English, Spanish and Catalan**, with **system,
 light and dark** themes.
 
+## Contents
+
+- [Screenshots](#screenshots)
+- [What it does](#what-it-does)
+- [Docker installation (recommended)](#docker-installation-recommended)
+  - [1. Create a Jellyfin API key](#1-create-a-jellyfin-api-key)
+  - [2. Configure the environment](#2-configure-the-environment)
+  - [3. Start the container](#3-start-the-container)
+  - [Connect the container to Jellyfin](#connect-the-container-to-jellyfin)
+  - [Data and updates](#data-and-updates)
+  - [Hardware acceleration in Docker](#hardware-acceleration-in-docker)
+  - [Docker troubleshooting](#docker-troubleshooting)
+- [Local installation (without Docker)](#local-installation-without-docker)
+- [Using the app](#using-the-app)
+  - [Series downloads](#series-downloads)
+  - [Downloads and reproducibility](#downloads-and-reproducibility)
+- [Configuration](#configuration)
+- [API](#api)
+- [Security](#security)
+- [Persistence](#persistence)
+- [Development](#development)
+- [License](#license)
+
 ## Screenshots
 
 <p align="center">
@@ -61,33 +84,163 @@ light and dark** themes.
 - **Durable jobs**: queued and running jobs survive restarts and continue
   automatically.
 
-## Quick start with Docker
+## Docker installation (recommended)
 
-Requirements: Docker and Docker Compose.
+Docker is the simplest way to run the app: the image already includes Node.js,
+ffmpeg and the fonts needed for burned-in subtitles.
+
+Requirements:
+
+- Docker Engine 24+ or Docker Desktop;
+- a Jellyfin server reachable from the container;
+- a Jellyfin API key (step 1).
+
+### 1. Create a Jellyfin API key
+
+1. Open the Jellyfin dashboard and go to **API Keys**.
+2. Select **+** and name it `jellyfin-downloader`.
+3. Copy the generated key.
+
+The key stays on the server; the browser never receives it.
+
+### 2. Configure the environment
 
 ```bash
+git clone https://github.com/angelespejo/jellyfin-downloader.git
+cd jellyfin-downloader
 cp .env.example .env
-# Edit .env with JELLYFIN_SERVER and JELLYFIN_API_KEY
-mkdir -p data
-docker compose up -d --build
 ```
 
-Open <http://localhost:3000>.
+Edit `.env` with at least:
 
-| Path in `data/` | Contents                    |
+```dotenv
+JELLYFIN_SERVER=http://host.docker.internal:8096
+JELLYFIN_API_KEY=your_api_key
+ORIGIN=http://localhost:3000
+TZ=Europe/Madrid
+```
+
+- `JELLYFIN_SERVER` is the address **as seen from the container**, without a
+  trailing slash. `localhost` there means the container itself; see
+  [Connect the container to Jellyfin](#connect-the-container-to-jellyfin).
+- `ORIGIN` must match the URL you open in the browser.
+- `TZ` only affects dates in logs.
+
+### 3. Start the container
+
+```bash
+mkdir -p data
+docker compose up -d
+```
+
+Compose pulls `ghcr.io/angelespejo/jellyfin-downloader:latest`, a public image
+for `linux/amd64` and `linux/arm64`; no registry login is needed. Open
+<http://localhost:3000>.
+
+```bash
+docker compose ps
+curl -s http://localhost:3000/api/v1/health
+docker compose logs -f jellyfin-downloader
+```
+
+Useful options in `.env`:
+
+| Variable                   | Default  | Purpose                           |
+| -------------------------- | -------- | --------------------------------- |
+| `JELLYFIN_DOWNLOADER_TAG`  | `latest` | Pin `0.1`, `0.1.0` or `latest`    |
+| `JELLYFIN_DOWNLOADER_PORT` | `3000`   | Host port                         |
+| `SERVER_DATA_DIR`          | `./data` | Host directory mounted at `/data` |
+
+Without cloning the repository, write the same variables to `.env` and start the
+container directly:
+
+```bash
+mkdir -p data
+docker run -d --name jellyfin-downloader \
+  --restart unless-stopped --init --stop-timeout 30 \
+  -p 3000:3000 -v "$PWD/data:/data" --env-file .env \
+  ghcr.io/angelespejo/jellyfin-downloader:latest
+```
+
+More recipes, from a minimal container to Jellyfin plus GPU passthrough, are in
+[docs/docker-compose.md](docs/docker-compose.md).
+
+### Connect the container to Jellyfin
+
+`JELLYFIN_SERVER` is resolved inside the container, so it depends on where
+Jellyfin runs:
+
+| Where Jellyfin runs             | `JELLYFIN_SERVER`                  |
+| ------------------------------- | ---------------------------------- |
+| Docker Desktop host             | `http://host.docker.internal:8096` |
+| Linux host, with `extra_hosts`  | `http://host.docker.internal:8096` |
+| Linux host, without extra hosts | `http://<LAN-IP>:8096`             |
+| Another compose service         | `http://jellyfin:8096`             |
+| Another machine                 | `http://<hostname-or-IP>:8096`     |
+
+The bundled `docker-compose.yml` has the `extra_hosts` block ready to uncomment
+on Linux. If the value is wrong, search and downloads fail while the rest of the
+interface keeps working.
+
+### Data and updates
+
+Everything persistent lives in `./data`, mounted at `/data`:
+
+| Path            | Contents                    |
 | --------------- | --------------------------- |
 | `settings.json` | Global defaults and presets |
 | `jobs/`         | Durable download jobs       |
 | `downloads/`    | Optional local output store |
 | `logs/`         | Persisted JSONL logs        |
 
-If Jellyfin runs on the Docker host, use `host.docker.internal` (on Linux,
-uncomment `extra_hosts` in `docker-compose.yml`). Behind a reverse proxy, set
-`ORIGIN` to the public URL.
+The container runs as `node` (UID 1000). On Linux, a custom directory must be
+writable by that user: `sudo chown -R 1000:1000 ./data`.
 
-## Quick start without Docker
+Update to the newest release with:
 
-Requirements: **Node.js 22.17+** (24 recommended), **pnpm 12** and **ffmpeg**.
+```bash
+docker compose pull
+docker compose up -d
+```
+
+`stop_grace_period: 30s` lets the app persist job state on shutdown, so queued and
+running downloads resume after an update or restart. `docker compose down` keeps
+the bind-mounted data.
+
+### Hardware acceleration in Docker
+
+The app probes the container at startup and falls back to software when a
+hardware encoder fails. VAAPI/QSV on Linux needs the render device:
+
+```yaml
+devices:
+  - /dev/dri:/dev/dri
+group_add:
+  - video
+  - render
+```
+
+Set `FFMPEG_HWACCEL=vaapi` or `qsv` to force it, or keep `auto`. NVENC requires
+the NVIDIA container toolkit and the host driver. VideoToolbox is only available
+when running natively on macOS; it does not exist in the Linux container.
+
+### Docker troubleshooting
+
+| Symptom                           | Fix                                                                   |
+| --------------------------------- | --------------------------------------------------------------------- |
+| Cannot reach Jellyfin             | Check `JELLYFIN_SERVER`: use the host gateway, LAN IP or service name |
+| `permission denied` under `/data` | `sudo chown -R 1000:1000 ./data` (Linux)                              |
+| `port is already allocated`       | Set `JELLYFIN_DOWNLOADER_PORT` to a free port                         |
+| Container reports `unhealthy`     | `docker compose logs jellyfin-downloader`; verify port and `ORIGIN`   |
+| Job fails immediately             | Check `http://localhost:3000/api/v1/health` and the job logs          |
+
+See [docs/docker.md](docs/docker.md) for the image details and
+[docs/configuration.md](docs/configuration.md) for every variable.
+
+## Local installation (without Docker)
+
+Docker is recommended for production. To run from source, you need **Node.js
+22.17+** (24 recommended), **pnpm 12** and **ffmpeg**.
 
 ```bash
 cp .env.example .env
@@ -144,7 +297,11 @@ The most important variables are:
 | `SERVER_JOBS_DIR`                | `./data/jobs`      | Durable job state                                       |
 | `SERVER_LOCAL_DOWNLOADS_DIR`     | `./data/downloads` | Local output store                                      |
 | `SERVER_LOGS_DIR`                | `./data/logs`      | Persisted logs                                          |
+| `ORIGIN`                         | —                  | Public URL behind a reverse proxy                       |
 | `API_CORS_ORIGINS`               | empty              | Optional CORS allowlist                                 |
+
+The bundled `docker-compose.yml` also reads `JELLYFIN_DOWNLOADER_TAG`,
+`JELLYFIN_DOWNLOADER_PORT` and `SERVER_DATA_DIR` from `.env`.
 
 See [docs/configuration.md](docs/configuration.md) for every variable and
 [docs/docker.md](docs/docker.md) for hardware passthrough.
