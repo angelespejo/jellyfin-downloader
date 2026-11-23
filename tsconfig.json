@@ -5,6 +5,6 @@
     "allowJs": false,
     "checkJs": false
   },
-  "include": ["src", "tests", ".dovenv/scripts", ".dovenv/dev", "vite.config.ts"],
+  "include": ["src", "tests", ".dovenv/scripts", ".dovenv/dev", "startup.ts", "vite.config.ts"],
   "exclude": [".svelte-kit", "build", "node_modules", ".dovenv/dev/fixtures"]
 }

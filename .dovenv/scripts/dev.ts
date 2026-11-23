@@ -1,18 +1,11 @@
 import { existsSync } from 'node:fs'
 import { spawn, spawnSync } from 'node:child_process'
 import { argv } from 'node:process'
+import { printBanner } from '../../startup.ts'
 
 const port = Number(process.env.MOCK_JELLYFIN_PORT ?? 8096)
 const apiKey = process.env.MOCK_API_KEY ?? 'dev-key'
 const manifest = '.dovenv/dev/fixtures/manifest.json'
-
-if (!existsSync(manifest)) {
-  console.log('Generating development fixtures...')
-  const result = spawnSync(process.execPath, ['.dovenv/scripts/fetch-mock-fixtures.ts'], {
-    stdio: 'inherit',
-  })
-  if (result.status !== 0) process.exit(result.status ?? 1)
-}
 
 const env = {
   ...process.env,
@@ -22,6 +15,17 @@ const env = {
   SERVER_LOCAL_DOWNLOADS_DIR: './data/dev-downloads',
   SERVER_SETTINGS_FILE: './data/dev-settings.json',
   SERVER_JOBS_DIR: './data/dev-jobs',
+}
+
+Object.assign(process.env, env)
+printBanner('development', argv.slice(2))
+
+if (!existsSync(manifest)) {
+  console.log('Generating development fixtures...')
+  const result = spawnSync(process.execPath, ['.dovenv/scripts/fetch-mock-fixtures.ts'], {
+    stdio: 'inherit',
+  })
+  if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
 const mock = spawn(process.execPath, ['.dovenv/scripts/mock-jellyfin.ts'], {

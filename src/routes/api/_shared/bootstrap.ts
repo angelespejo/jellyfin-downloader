@@ -1,8 +1,5 @@
 import { mkdir } from 'node:fs/promises'
-import path from 'node:path'
-import { dev } from '$app/env'
 import { JELLYFIN_SERVER, JELLYFIN_URL } from '$app/env/private'
-import { APP_NAME, APP_VERSION } from '#const'
 import { getConfig, type ServerConfig } from './config.js'
 import { getFfmpegInfo } from './ffmpeg.js'
 import { detectHardware, hardwareModeLabel } from './hardware.js'
@@ -15,51 +12,12 @@ import { getSettingsStore } from './settings.js'
 const START_KEY = Symbol.for('jellyfin-downloader.bootstrap.started')
 const SHUTDOWN_KEY = Symbol.for('jellyfin-downloader.bootstrap.shutdown')
 
-const TITLE = String.raw`
-     ██╗ ███████╗ ██╗      ██╗      ██╗   ██╗ ███████╗ ██╗ ███╗   ██╗
-     ██║ ██╔════╝ ██║      ██║      ╚██╗ ██╔╝ ██╔════╝ ██║ ████╗  ██║
-     ██║ █████╗   ██║      ██║       ╚████╔╝  █████╗   ██║ ██╔██╗ ██║
-██   ██║ ██╔══╝   ██║      ██║        ╚██╔╝   ██╔══╝   ██║ ██║╚██╗██║
-╚█████╔╝ ███████╗ ███████╗ ███████╗    ██║    ██║      ██║ ██║ ╚████║
- ╚════╝  ╚══════╝ ╚══════╝ ╚══════╝    ╚═╝    ╚═╝      ╚═╝ ╚═╝  ╚═══╝
-                     D O W N L O A D E R
-`
-
-function colorize(code: string, text: string, enabled: boolean): string {
-  return enabled ? `\x1b[${code}m${text}\x1b[0m` : text
-}
-
 function readConfig(): ServerConfig | null {
   try {
     return getConfig()
   } catch {
     return null
   }
-}
-
-function printBanner(config: ServerConfig | null): void {
-  const color = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR
-  const title = colorize('36', TITLE, color)
-  const dim = (text: string) => colorize('2', text, color)
-  const port = process.env.PORT?.trim() || (dev ? '5173' : '3000')
-  const url = process.env.ORIGIN?.trim() || `http://localhost:${port}`
-  const data = config ? path.dirname(config.settingsFile) : 'not configured'
-  const jellyfin = config?.jellyfinUrl ?? 'not configured'
-  const storage = config
-    ? config.localDownloadsEnabled
-      ? 'local downloads enabled'
-      : 'local downloads disabled'
-    : 'unknown'
-  const mode = dev ? 'development' : 'production'
-
-  console.log(title)
-  console.log(`  ${dim('URL      ')} ${url}`)
-  console.log(`  ${dim('Jellyfin ')} ${jellyfin}`)
-  console.log(`  ${dim('Data     ')} ${data}`)
-  console.log(`  ${dim('Storage  ')} ${storage}`)
-  console.log(`  ${dim('Node     ')} ${process.version} · ${mode}`)
-  console.log(`  ${dim('Product  ')} ${APP_NAME} ${APP_VERSION}`)
-  console.log('')
 }
 
 async function prepareStorage(config: ServerConfig): Promise<void> {
@@ -105,7 +63,7 @@ async function probeJellyfin(): Promise<void> {
   try {
     const info = await getJellyfinClient().getSystemInfo()
     const version = info.Version ?? 'unknown'
-    console.log(`  Jellyfin  connected (${version})`)
+    console.log(`[startup] Jellyfin connected (${version})`)
     void logEvent('info', 'jellyfin.connected', 'Connected to Jellyfin', { version })
   } catch (error) {
     console.warn(
@@ -127,7 +85,7 @@ async function inspectFfmpeg(): Promise<void> {
   const version = /ffmpeg version (\S+)/.exec(info.version ?? '')?.[1] ?? info.version ?? ''
   const hardware = await detectHardware(info.encoders)
   console.log(
-    `  ffmpeg    ${version} · ${hardware ? hardwareModeLabel(hardware.mode) : 'software'}`
+    `[startup] ffmpeg ${version} · ${hardware ? hardwareModeLabel(hardware.mode) : 'software'}`
   )
   void logEvent('info', 'ffmpeg.ready', `ffmpeg ${version} ready`, {
     hardware: hardware?.mode ?? 'software',
@@ -136,7 +94,6 @@ async function inspectFfmpeg(): Promise<void> {
 
 async function run(): Promise<void> {
   const config = readConfig()
-  printBanner(config)
 
   if (!config) {
     console.error('[startup] Invalid configuration. Set JELLYFIN_URL and JELLYFIN_API_KEY in .env.')

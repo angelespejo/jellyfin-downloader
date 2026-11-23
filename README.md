@@ -209,7 +209,8 @@ running downloads resume after an update or restart. `docker compose down` keeps
 the bind-mounted data.
 
 At startup the server prints a banner with the URL, Jellyfin host, data directory
-and ffmpeg status, and records startup events in `logs/`.
+and storage mode, then logs ffmpeg, hardware and Jellyfin connectivity events in
+`logs/`.
 
 ### Hardware acceleration in Docker
 

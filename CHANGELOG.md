@@ -8,8 +8,8 @@ All notable changes are documented here. The format follows
 
 ### Added
 
-- Startup ASCII banner with the URL, Jellyfin host, data directory and ffmpeg
-  status.
+- Startup ASCII banner printed before Vite or the production server starts, with
+  the URL, Jellyfin host, data directory and storage mode.
 - Startup diagnostics recorded in the application log: settings creation,
   restored jobs, Jellyfin connectivity, ffmpeg/hardware and the missing
   authentication warning.
