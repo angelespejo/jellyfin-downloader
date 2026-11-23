@@ -18,6 +18,7 @@
     "#api/*": "./src/routes/api/*"
   },
   "scripts": {
+    "preinstall": "pnpm run security:audit",
     "dev": "node .dovenv/scripts/dev.ts",
     "dev:mock": "node .dovenv/scripts/dev.ts",
     "dev-remote": "node --env-file-if-exists=.env .dovenv/scripts/startup.ts dev",
