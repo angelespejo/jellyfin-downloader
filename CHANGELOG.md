@@ -15,7 +15,12 @@ All notable changes are documented here. The format follows
   authentication warning.
 - `JELLYFIN_SERVER` is accepted as a deprecated alias of `JELLYFIN_URL`.
 - Active download queue: card badges, a queue tab in the media dialog, a
-  **Downloading now** section on the downloads page and cancel actions.
+  **Downloading now** section on the downloads page, configuration badges and
+  cancel actions.
+- Play in Jellyfin link in the media dialog, redirected server-side to avoid
+  exposing the internal Jellyfin URL.
+- Active processing time stored per job and shown in the dialog and downloads;
+  existing jobs show the original processing time when reused.
 - Infinite scroll for the library search and the persisted logs, with visible
   **Load more** fallbacks.
 - Select/deselect-all controls for audio and subtitles, plus a subtitle counter.

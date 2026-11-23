@@ -6,6 +6,7 @@ import {
   FFMPEG_PATH,
   FFMPEG_VAAPI_DEVICE,
   JELLYFIN_API_KEY,
+  JELLYFIN_PUBLIC_URL,
   JELLYFIN_SERVER,
   JELLYFIN_URL,
   SERVER_LOCAL_DOWNLOADS_DIR,
@@ -29,6 +30,7 @@ export class ConfigError extends Error {
 
 export interface ServerConfig {
   jellyfinUrl: string
+  jellyfinPublicUrl: string
   jellyfinApiKey: string
   ffmpegPath: string
   ffmpegCandidates: string[]
@@ -78,22 +80,22 @@ function resolveSafePath(value: string, fallback: string, name: string): string 
   return resolved
 }
 
-function normalizeJellyfinUrl(value: string): string {
+function normalizeJellyfinUrl(value: string, name = 'JELLYFIN_URL'): string {
   const trimmed = value.trim()
   if (!trimmed) {
-    throw new ConfigError('JELLYFIN_URL is required (JELLYFIN_SERVER is a deprecated alias)')
+    throw new ConfigError(`${name} is required (JELLYFIN_SERVER is a deprecated alias)`)
   }
   let url: URL
   try {
     url = new URL(trimmed)
   } catch {
-    throw new ConfigError('JELLYFIN_URL is not a valid URL')
+    throw new ConfigError(`${name} is not a valid URL`)
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new ConfigError('JELLYFIN_URL must use http or https')
+    throw new ConfigError(`${name} must use http or https`)
   }
   if (url.username || url.password) {
-    throw new ConfigError('JELLYFIN_URL must not include credentials in the URL')
+    throw new ConfigError(`${name} must not include credentials in the URL`)
   }
   return url.toString().replace(/\/+$/, '')
 }
@@ -112,6 +114,11 @@ function validateApiKey(value: string): string {
 export function getConfig(): ServerConfig {
   if (cached) return cached
 
+  const jellyfinUrl = normalizeJellyfinUrl(pickFirstNonEmpty(JELLYFIN_URL, JELLYFIN_SERVER))
+  const publicUrl = JELLYFIN_PUBLIC_URL.trim()
+  const jellyfinPublicUrl = publicUrl
+    ? normalizeJellyfinUrl(publicUrl, 'JELLYFIN_PUBLIC_URL')
+    : jellyfinUrl
   const localDownloadsEnabled = envBoolean(SERVER_LOCAL_DOWNLOADS_ENABLED, true)
   const maxGb = parseNonNegativeNumber(
     SERVER_LOCAL_DOWNLOADS_MAX_GB,
@@ -126,7 +133,8 @@ export function getConfig(): ServerConfig {
     : 14
 
   cached = {
-    jellyfinUrl: normalizeJellyfinUrl(pickFirstNonEmpty(JELLYFIN_URL, JELLYFIN_SERVER)),
+    jellyfinUrl,
+    jellyfinPublicUrl,
     jellyfinApiKey: validateApiKey(JELLYFIN_API_KEY),
     ffmpegPath: FFMPEG_PATH.trim(),
     ffmpegCandidates: FFMPEG_CANDIDATES.split(path.delimiter)

@@ -27,6 +27,7 @@ export interface PersistedJob {
   sourceBytes: number | null
   sourceContentLength: number | null
   attempts: number
+  processingMs?: number
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -127,6 +128,10 @@ function isPersistedJob(value: unknown): value is PersistedJob {
     STAGES.has(job.stage as JobStage) &&
     typeof job.createdAt === 'string' &&
     typeof job.updatedAt === 'string' &&
+    (job.processingMs === undefined ||
+      (typeof job.processingMs === 'number' &&
+        Number.isFinite(job.processingMs) &&
+        job.processingMs >= 0)) &&
     typeof job.sourceComplete === 'boolean'
   )
 }

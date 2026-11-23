@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import type { PageData } from './$types'
   import type { DownloadConfig, LocalDownloadInfo, MovieDetail, MovieSummary } from '#lib/types.js'
   import { page } from '$app/state'
@@ -78,7 +79,7 @@
   }
 
   $effect(() => {
-    queue.start()
+    untrack(() => queue.start())
     return () => queue.stop()
   })
 

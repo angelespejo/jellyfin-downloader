@@ -31,6 +31,11 @@ export function formatTicks(ticks: number | null | undefined): number | null {
   return ticks / 10_000_000
 }
 
+export function formatProcessingTime(ms: number | null | undefined): string {
+  if (!ms || !Number.isFinite(ms) || ms <= 0) return '—'
+  return formatDuration(Math.max(1, Math.round(ms / 1000)))
+}
+
 export function formatLanguage(code: string | null | undefined, locale: Locale = 'en'): string {
   if (!code) return '—'
   try {

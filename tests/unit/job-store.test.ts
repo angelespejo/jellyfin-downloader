@@ -66,6 +66,7 @@ function record(overrides: Partial<PersistedJob> = {}): PersistedJob {
     sourceBytes: 1000,
     sourceContentLength: 1000,
     attempts: 1,
+    processingMs: 1500,
     ...overrides,
   }
 }
@@ -79,6 +80,7 @@ test('JobStore persists and restores job state atomically', async () => {
     assert.equal(loaded.length, 1)
     assert.equal(loaded[0]?.id, record().id)
     assert.equal(loaded[0]?.plan.movieTitle, 'Test movie')
+    assert.equal(loaded[0]?.processingMs, 1500)
     const raw = await readFile(path.join(directory, `${record().id}.json`), 'utf8')
     assert.match(raw, /"cacheKey"/)
     assert.doesNotMatch(raw, /JELLYFIN_API_KEY/)

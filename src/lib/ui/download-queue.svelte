@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import type { DownloadJobStatus } from '#lib/types.js'
   import { formatBytes } from '#lib/format.js'
   import { getI18n } from '#core/i18n.svelte.js'
@@ -6,6 +7,7 @@
   import { getDownloadQueue } from '#core/download-queue.svelte.js'
   import ConfirmDialog from '#lib/components/confirm-dialog.svelte'
   import Icon from '#lib/components/icon.svelte'
+  import DownloadConfigBadge from '#lib/ui/download-config-badge.svelte'
 
   let { compact = false, hideEmpty = false }: { compact?: boolean; hideEmpty?: boolean } = $props()
 
@@ -17,7 +19,7 @@
   let cancelling = $state<string | null>(null)
 
   $effect(() => {
-    queue.start()
+    untrack(() => queue.start())
     return () => queue.stop()
   })
 
@@ -110,6 +112,8 @@
             {/if}
           </div>
         {/if}
+
+        <DownloadConfigBadge config={job.config} movieId={job.movieId} downloadKey={null} compact />
 
         <div class="queue-actions">
           <button

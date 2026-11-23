@@ -6,6 +6,7 @@ by git; `.env.example` is the template.
 | Variable                          | Default                | Description                                               |
 | --------------------------------- | ---------------------- | --------------------------------------------------------- |
 | `JELLYFIN_URL`                    | —                      | Jellyfin base URL                                         |
+| `JELLYFIN_PUBLIC_URL`             | `JELLYFIN_URL`         | Browser-facing Jellyfin URL for the Play button           |
 | `JELLYFIN_SERVER`                 | —                      | Deprecated alias of `JELLYFIN_URL`                        |
 | `JELLYFIN_API_KEY`                | —                      | Server-side Jellyfin API key                              |
 | `FFMPEG_PATH`                     | auto                   | ffmpeg binary or directory                                |

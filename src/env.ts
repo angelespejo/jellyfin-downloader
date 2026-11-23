@@ -11,6 +11,10 @@ export const variables = defineEnvVars({
     description: 'Deprecated alias of JELLYFIN_URL (server only)',
     schema: optional,
   },
+  JELLYFIN_PUBLIC_URL: {
+    description: 'Public Jellyfin URL used by browser redirects (optional)',
+    schema: optional,
+  },
   JELLYFIN_API_KEY: {
     description: 'Jellyfin API key (server only)',
     schema: optional,

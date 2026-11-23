@@ -29,14 +29,15 @@ viewport and paints above the sticky header and footer.
 `MovieDialog` is a reusable `ModalShell` dialog with three sticky tabs:
 
 - **Details** — poster, title with year, runtime and selected-version size; media
-  badges with tooltips; source selector; collapsible output, audio and subtitle
-  sections; select/deselect-all controls for audio and subtitles; local-store
-  status; download button, generated filename and job progress (with cancel).
+  badges with tooltips; a **Play in Jellyfin** link; source selector; collapsible
+  output, audio and subtitle sections; select/deselect-all controls for audio and
+  subtitles; local-store status; download button, generated filename and job
+  progress (with cancel and processing time).
 - **Downloads (N)** — local results for that movie, home video or episode, with
   size, date, download link, configuration badge and a styled delete
   confirmation. A series lists downloads for all of its episodes.
-- **Queue (N)** — every active download, with stage, progress or queue position
-  and a cancel action.
+- **Queue (N)** — every active download, with stage, progress or queue position,
+  original size, configuration badge/popover and a cancel action.
 
 The tabs remain pinned below the modal title while the body scrolls. Output
 files are named `Title (year) - Preset.ext`, or `Title (year) - custom.ext`
@@ -79,7 +80,8 @@ and returns focus to the card.
 - filename and optional movie/year;
 - a link back to the media dialog (`/?modal=<item id>`) when the Jellyfin item
   is known;
-- size, original source size, date, type and a preset/custom configuration badge;
+- size, original source size, processing time, date, type and a preset/custom
+  configuration badge;
 - a hover/focus popover with the exact configuration and a **Replicate**
   action that opens the dialog prefilled through `?modal=<id>&from=<key>`;
 - stable download URL;

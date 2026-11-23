@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { DownloadJobStatus } from '#lib/types.js'
-  import { formatBytes } from '#lib/format.js'
+  import { formatBytes, formatProcessingTime } from '#lib/format.js'
   import { getI18n } from '#core/i18n.svelte.js'
   import Icon from '#lib/components/icon.svelte'
 
@@ -80,6 +80,11 @@
         {job.output.kind === 'zip' ? i18n.t('job.zip') : i18n.t('job.file')} ·
         {job.output.filename} · {formatBytes(job.output.sizeBytes, i18n.locale)}
       </div>
+      {#if job.processingMs > 0}
+        <p class="muted small" title={i18n.t('common.processedHint')}>
+          {i18n.t('common.processedIn', { time: formatProcessingTime(job.processingMs) })}
+        </p>
+      {/if}
       <div class="actions">
         <a class="badge accent hover-shine" href={job.output.downloadUrl} download>
           {i18n.t('job.download')}

@@ -18,7 +18,13 @@
     TabItem,
     TrackSelection,
   } from '#lib/types.js'
-  import { formatBytes, formatDuration, formatLanguage, formatTimestamp } from '#lib/format.js'
+  import {
+    formatBytes,
+    formatDuration,
+    formatLanguage,
+    formatProcessingTime,
+    formatTimestamp,
+  } from '#lib/format.js'
   import ModalShell from '#lib/components/modal-shell.svelte'
   import Icon from '#lib/components/icon.svelte'
   import Tabs from '#lib/components/tabs.svelte'
@@ -222,7 +228,7 @@
   })
 
   $effect(() => {
-    queue.start()
+    untrack(() => queue.start())
     return () => queue.stop()
   })
 
@@ -1155,6 +1161,16 @@
                 </div>
                 {#if series.overview}<p class="overview">{series.overview}</p>{/if}
                 <div class="series-head-actions">
+                  <a
+                    class="badge accent hover-shine"
+                    href={`/watch/${movie.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={i18n.t('detail.play')}
+                  >
+                    <Icon name="play" size={14} />
+                    {i18n.t('detail.play')}
+                  </a>
                   {#if batchMode}
                     <button type="button" class="ghost hover-shine" onclick={exitBatchSelection}>
                       {i18n.t('detail.series.exitSelection')}
@@ -1432,6 +1448,18 @@
                     {i18n.t('movies.downloadsCount', { count: activeItem.downloadCount })}
                   </span>
                 {/if} -->
+              </div>
+              <div class="title-actions">
+                <a
+                  class="badge accent hover-shine"
+                  href={`/watch/${activeItem.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={i18n.t('detail.play')}
+                >
+                  <Icon name="play" size={14} />
+                  {i18n.t('detail.play')}
+                </a>
               </div>
               {#if detail?.sources.length && detail.sources.length > 1}
                 <div class="field" style="margin-top: .7rem; max-width: 30rem;">
@@ -1780,6 +1808,13 @@
                         {item.kind === 'zip' ? i18n.t('downloads.zip') : i18n.t('downloads.file')}
                       </span>
                       <span>{formatBytes(item.sizeBytes, i18n.locale)}</span>
+                      {#if item.processingMs}
+                        <span title={i18n.t('common.processedHint')}>
+                          {i18n.t('common.processedIn', {
+                            time: formatProcessingTime(item.processingMs),
+                          })}
+                        </span>
+                      {/if}
                       <span>{formatTimestamp(item.createdAt, i18n.locale)}</span>
                     </span>
                     <DownloadConfigBadge
@@ -1860,6 +1895,13 @@
 />
 
 <style>
+  .title-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+  }
+
   .track-action {
     padding: 0.25rem 0.5rem;
     border-radius: 8px;

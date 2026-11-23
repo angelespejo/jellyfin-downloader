@@ -52,6 +52,8 @@ class FfmpegError extends Error {
 }
 
 interface JobRecord extends PersistedJob {
+  processingMs: number
+  processingStartedAt: number | null
   controller: AbortController
   child: ChildProcessByStdio<null, NodeReadable, NodeReadable> | null
   cancelRequested: boolean
@@ -187,6 +189,8 @@ function toStatus(job: JobRecord): DownloadJobStatus {
     movieId: job.plan.movieId,
     seriesId: job.plan.seriesId ?? null,
     sourceSizeBytes: job.plan.sourceSizeBytes,
+    processingMs: currentProcessingMs(job),
+    config: job.plan.config ?? null,
     state: job.state,
     stage: job.stage,
     progress: job.progress,
@@ -204,6 +208,21 @@ function toStatus(job: JobRecord): DownloadJobStatus {
 
 function touch(job: JobRecord): void {
   job.updatedAt = new Date().toISOString()
+}
+
+function currentProcessingMs(job: JobRecord): number {
+  const active = job.processingStartedAt ? Math.max(0, Date.now() - job.processingStartedAt) : 0
+  return Math.round(job.processingMs + active)
+}
+
+function startProcessingTimer(job: JobRecord): void {
+  if (job.processingStartedAt === null) job.processingStartedAt = Date.now()
+}
+
+function stopProcessingTimer(job: JobRecord): void {
+  if (job.processingStartedAt === null) return
+  job.processingMs += Math.max(0, Date.now() - job.processingStartedAt)
+  job.processingStartedAt = null
 }
 
 function updateProgress(job: JobRecord, value: number | null): void {
@@ -235,6 +254,7 @@ function persisted(job: JobRecord): PersistedJob {
     sourceBytes: job.sourceBytes,
     sourceContentLength: job.sourceContentLength,
     attempts: job.attempts,
+    processingMs: job.processingMs,
   }
 }
 
@@ -593,6 +613,7 @@ async function finalizeOutput(
     movieYear: job.plan.movieYear,
     sourceId: job.plan.sourceId,
     sourceSizeBytes: job.plan.sourceSizeBytes,
+    processingMs: currentProcessingMs(job),
     config: job.plan.config ?? null,
   })
 
@@ -646,6 +667,8 @@ function baseRecord(plan: DownloadPlan): JobRecord {
     sourceBytes: null,
     sourceContentLength: null,
     attempts: 0,
+    processingMs: 0,
+    processingStartedAt: null,
     controller: new AbortController(),
     child: null,
     cancelRequested: false,
@@ -665,12 +688,16 @@ function readyRecord(plan: DownloadPlan, stored: StoredObject): JobRecord {
   record.outputKind = stored.meta.kind
   record.outputSize = stored.meta.sizeBytes
   record.outputContentType = stored.meta.contentType
+  record.processingMs = stored.meta.processingMs ?? 0
+  record.processingStartedAt = null
   return record
 }
 
 function hydrate(persistedJob: PersistedJob): JobRecord {
   return {
     ...persistedJob,
+    processingMs: persistedJob.processingMs ?? 0,
+    processingStartedAt: null,
     controller: new AbortController(),
     child: null,
     cancelRequested: false,
@@ -724,6 +751,7 @@ class JobManager {
             job.progress = 1
             job.cached = true
             job.stored = true
+            job.processingMs = stored.meta.processingMs ?? 0
             job.outputPath = stored.path
             job.outputFilename = stored.meta.filename
             job.outputKind = stored.meta.kind
@@ -977,6 +1005,7 @@ class JobManager {
     job.stage = 'preparing'
     job.error = null
     job.errorCode = null
+    startProcessingTimer(job)
     updateProgress(job, 0.01)
     await this.persist(job, true)
 
@@ -1035,6 +1064,7 @@ class JobManager {
       }
       await finalizeOutput(job, activeProcessing, workDir, () => this.persist(job, true))
 
+      stopProcessingTimer(job)
       job.state = 'ready'
       job.stage = 'ready'
       job.error = null
@@ -1048,6 +1078,7 @@ class JobManager {
         filename: job.plan.downloadName,
       })
     } catch (error) {
+      stopProcessingTimer(job)
       if (this.shuttingDown) {
         job.state = 'queued'
         job.stage = 'preparing'
@@ -1087,6 +1118,7 @@ class JobManager {
         }
       )
     } finally {
+      stopProcessingTimer(job)
       job.child = null
       if (!this.shuttingDown) job.controller = new AbortController()
     }
@@ -1130,6 +1162,7 @@ class JobManager {
     this.shuttingDown = true
     for (const job of jobs.values()) {
       if (job.state === 'queued' || job.state === 'running') {
+        stopProcessingTimer(job)
         job.state = 'queued'
         job.stage = 'preparing'
         job.progress = 0

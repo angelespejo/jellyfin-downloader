@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types'
   import type { LocalDownloadInfo } from '#lib/types.js'
-  import { formatBytes, formatTimestamp } from '#lib/format.js'
+  import { formatBytes, formatProcessingTime, formatTimestamp } from '#lib/format.js'
   import { getI18n } from '#core/i18n.svelte.js'
   import { getNotifications } from '#core/notifications.svelte.js'
   import Icon from '#lib/components/icon.svelte'
@@ -186,6 +186,13 @@
             <span title={i18n.t('common.originalSizeHint')}>
               {i18n.t('common.originalSize', {
                 size: formatBytes(item.sourceSizeBytes, i18n.locale),
+              })}
+            </span>
+          {/if}
+          {#if item.processingMs}
+            <span title={i18n.t('common.processedHint')}>
+              {i18n.t('common.processedIn', {
+                time: formatProcessingTime(item.processingMs),
               })}
             </span>
           {/if}

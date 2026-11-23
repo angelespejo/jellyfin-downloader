@@ -67,6 +67,7 @@ light and dark** themes.
   results, poster cards and infinite scroll with server-side pagination.
 - **Inspect real media sources**: video resolution, container, size, audio
   languages, subtitle tracks and multiple versions.
+- **Open the item in Jellyfin** from the media dialog with the play button.
 - **Build the output you want**: MKV, MP4 or WebM; original, 4K, 2K, 1080p,
   720p, 480p or 360p; copy or re-encode video/audio.
 - **Choose subtitle packaging**: integrated, separate files or burn-in when
@@ -81,6 +82,7 @@ light and dark** themes.
   queue tab, and can be cancelled from the dialog or the downloads page.
 - **Reuse local results** with deterministic cache keys and replicate a previous
   configuration from its badge.
+- **See processing time** and original source size for every finished download.
 - **Keep notes and logs**: global notifications plus persisted JSONL logs in
   **Settings → Logs**.
 - **Durable jobs**: queued and running jobs survive restarts and continue
@@ -298,6 +300,7 @@ The most important variables are:
 | Variable                         | Default            | Purpose                                                 |
 | -------------------------------- | ------------------ | ------------------------------------------------------- |
 | `JELLYFIN_URL`                   | —                  | Jellyfin base URL                                       |
+| `JELLYFIN_PUBLIC_URL`            | `JELLYFIN_URL`     | Browser-facing Jellyfin URL for the Play button         |
 | `JELLYFIN_API_KEY`               | —                  | Server-side Jellyfin API key                            |
 | `FFMPEG_PATH`                    | auto               | ffmpeg binary or directory                              |
 | `FFMPEG_HWACCEL`                 | `auto`             | `auto`, `none`, `videotoolbox`, `nvenc`, `qsv`, `vaapi` |
@@ -331,6 +334,8 @@ curl -s 'http://localhost:3000/api/v1/movies?q=general'
 ## Security
 
 - The Jellyfin API key never reaches the browser.
+- The **Play in Jellyfin** button redirects through `/watch/{id}`; set
+  `JELLYFIN_PUBLIC_URL` when the browser must use a different Jellyfin address.
 - ffmpeg runs with discrete arguments and `shell: false`.
 - Client input is validated against real Jellyfin metadata.
 - The app has **no built-in authentication**. Run it behind a reverse proxy or

@@ -242,6 +242,7 @@ export interface LocalDownloadInfo {
   filename: string
   sizeBytes: number
   sourceSizeBytes: number | null
+  processingMs: number | null
   createdAt: string
   kind: 'file' | 'zip'
   movieId: string | null
@@ -336,6 +337,8 @@ export interface DownloadJobStatus {
   movieId: string
   seriesId: string | null
   sourceSizeBytes: number | null
+  processingMs: number
+  config: DownloadConfig | null
   state: JobState
   stage: JobStage
   progress: number | null

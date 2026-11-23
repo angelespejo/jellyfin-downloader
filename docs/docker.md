@@ -35,6 +35,8 @@ live in [Docker Compose examples](docker-compose.md).
 
 `JELLYFIN_URL` is resolved inside the container, so `localhost` is the
 container itself. `JELLYFIN_SERVER` is accepted as a deprecated alias.
+`JELLYFIN_PUBLIC_URL` is the browser-facing URL used by the Play button; when
+empty it falls back to `JELLYFIN_URL`.
 
 | Where Jellyfin runs             | Value                              |
 | ------------------------------- | ---------------------------------- |
