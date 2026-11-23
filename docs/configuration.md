@@ -5,13 +5,14 @@ by git; `.env.example` is the template.
 
 | Variable                          | Default                | Description                                               |
 | --------------------------------- | ---------------------- | --------------------------------------------------------- |
-| `JELLYFIN_SERVER`                 | —                      | Jellyfin base URL                                         |
+| `JELLYFIN_URL`                    | —                      | Jellyfin base URL                                         |
+| `JELLYFIN_SERVER`                 | —                      | Deprecated alias of `JELLYFIN_URL`                        |
 | `JELLYFIN_API_KEY`                | —                      | Server-side Jellyfin API key                              |
 | `FFMPEG_PATH`                     | auto                   | ffmpeg binary or directory                                |
 | `FFMPEG_CANDIDATES`               | —                      | Extra paths separated by the OS delimiter                 |
 | `FFMPEG_HWACCEL`                  | `auto`                 | `auto`, `none`, `videotoolbox`, `nvenc`, `qsv` or `vaapi` |
 | `FFMPEG_VAAPI_DEVICE`             | `/dev/dri/renderD128`  | VAAPI/QSV render device                                   |
-| `SERVER_LOCAL_DOWNLOADS_ENABLED`  | `false`                | Enable reusable local outputs                             |
+| `SERVER_LOCAL_DOWNLOADS_ENABLED`  | `true`                 | Reuse and keep finished downloads                         |
 | `SERVER_LOCAL_DOWNLOADS_DIR`      | `./data/downloads`     | Output store directory                                    |
 | `SERVER_LOCAL_DOWNLOADS_MAX_GB`   | `0`                    | Optional size limit                                       |
 | `SERVER_LOCAL_DOWNLOADS_TTL_DAYS` | `0`                    | Optional TTL                                              |
@@ -72,11 +73,12 @@ server-rendered HTML already has the right `lang` and `data-theme` attributes.
 ## Logs
 
 Meaningful server events are appended as JSONL to
-`SERVER_LOGS_DIR/YYYY-MM-DD.jsonl`: download jobs, cache hits, hardware
-fallbacks, settings changes, deleted local downloads and internal errors. The
-logger redacts keys such as `apiKey`, `token`, `authorization`, `password`,
-`path` and `secret`; it never stores the Jellyfin API key or absolute server
-paths. Files are removed after `SERVER_LOGS_RETENTION_DAYS` (14 by default).
+`SERVER_LOGS_DIR/YYYY-MM-DD.jsonl`: startup and shutdown, settings creation and
+changes, Jellyfin connectivity, restored jobs, download jobs, cache hits,
+hardware fallbacks, deleted local downloads and internal errors. The logger
+redacts keys such as `apiKey`, `token`, `authorization`, `password`, `path` and
+`secret`; it never stores the Jellyfin API key or absolute server paths. Files
+are removed after `SERVER_LOGS_RETENTION_DAYS` (14 by default).
 
 Logs are available in **Settings → Logs** and through:
 
@@ -88,7 +90,7 @@ DELETE /api/v1/logs[?date=YYYY-MM-DD]
 
 ## Local downloads
 
-The store layout is:
+The store is enabled by default. The layout is:
 
 ```text
 <SERVER_LOCAL_DOWNLOADS_DIR>/objects/<2 hex>/<sha256>/

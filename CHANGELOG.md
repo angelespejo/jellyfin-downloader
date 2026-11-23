@@ -8,16 +8,35 @@ All notable changes are documented here. The format follows
 
 ### Added
 
+- Startup ASCII banner with the URL, Jellyfin host, data directory and ffmpeg
+  status.
+- Startup diagnostics recorded in the application log: settings creation,
+  restored jobs, Jellyfin connectivity, ffmpeg/hardware and the missing
+  authentication warning.
+- `JELLYFIN_SERVER` is accepted as a deprecated alias of `JELLYFIN_URL`.
 - `docs/docker-compose.md` with progressive examples: minimal, persistent, pinned
   version, reverse proxy, local downloads store, GPU passthrough and a full stack
   with Jellyfin.
 
 ### Changed
 
+- `JELLYFIN_URL` replaces `JELLYFIN_SERVER`.
+- Local downloads are enabled by default; set
+  `SERVER_LOCAL_DOWNLOADS_ENABLED=false` to disable them.
+- The settings file and data directories are created at startup instead of on the
+  first request.
+- The security note about missing authentication is no longer rendered in
+  Settings; it is logged on startup.
 - The bundled `docker-compose.yml` pulls the published
   `ghcr.io/angelespejo/jellyfin-downloader` image instead of building locally.
 - The README documents the Docker installation step by step and links to the
   Compose examples.
+
+### Fixed
+
+- Movie and series details failed with `Jellyfin responded with HTTP 400` on
+  Jellyfin 12, which the UI reported as "Could not connect to Jellyfin". Item
+  detail requests now include a resolved Jellyfin `userId`.
 
 ## v0.1.0 - 2026-11-21
 

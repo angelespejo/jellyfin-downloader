@@ -375,6 +375,8 @@ export function defaultSettings(): SettingsDocument {
 interface LoadResult {
   document: SettingsDocument
   warning: string | null
+  /** True when the file did not exist and was written with factory defaults. */
+  created: boolean
 }
 
 class SettingsStore {
@@ -402,7 +404,7 @@ class SettingsStore {
       try {
         const info = await stat(this.file)
         if (info.mtimeMs === this.cachedMtime) {
-          return { document: this.cached, warning: this.warning }
+          return { document: this.cached, warning: this.warning, created: false }
         }
       } catch {
         // file disappeared: recreate it below
@@ -421,13 +423,13 @@ class SettingsStore {
           presets: structuredClone(DEFAULT_SETTINGS.presets),
         }
         await this.writeAtomic(document)
-        return { document, warning: null }
+        return { document, warning: null, created: false }
       }
       const info = await stat(this.file)
       this.cached = document
       this.cachedMtime = info.mtimeMs
       this.warning = null
-      return { document, warning: null }
+      return { document, warning: null, created: false }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         const document = defaultSettings()
@@ -435,17 +437,20 @@ class SettingsStore {
         await this.writeAtomic(document)
         this.cached = document
         this.warning = null
-        return { document, warning: null }
+        return { document, warning: null, created: true }
       }
+      const code = (error as NodeJS.ErrnoException).code
       const message =
         error instanceof SettingsValidationError
           ? `The configuration file is invalid: ${error.message}`
-          : 'Could not read the configuration file; factory defaults are being used'
-      console.error('[settings]', message)
+          : code === 'EACCES' || code === 'EPERM' || code === 'EROFS'
+            ? 'Could not write the settings file; make sure the data directory is writable'
+            : 'Could not read the configuration file; factory defaults are being used'
+      console.error('[settings]', message, error)
       const fallback = defaultSettings()
       this.cached = fallback
       this.warning = message
-      return { document: fallback, warning: message }
+      return { document: fallback, warning: message, created: false }
     }
   }
 

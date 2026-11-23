@@ -236,8 +236,6 @@ export const es: Record<MessageKey, string> = {
   'settings.title': 'Ajustes',
   'settings.subtitle':
     'Esta configuración se guarda en el servidor y se comparte con todas las descargas nuevas.',
-  'settings.noAuth':
-    'Sin autenticación integrada: cualquiera con acceso a esta instancia puede cambiar estos ajustes. Úsala detrás de un reverse proxy o VPN.',
   'settings.help.language':
     'Automático usa el primer idioma del navegador: español, catalán o inglés.',
   'settings.help.theme': 'Sistema sigue la configuración del sistema operativo.',
@@ -324,7 +322,7 @@ export const es: Record<MessageKey, string> = {
   'settings.presetSaved': 'Preset guardado.',
   'settings.presetDeleted': 'Preset eliminado.',
 
-  'page.loadError': 'No se pudo conectar con Jellyfin. Revisa JELLYFIN_SERVER y JELLYFIN_API_KEY.',
+  'page.loadError': 'No se pudo conectar con Jellyfin. Revisa JELLYFIN_URL y JELLYFIN_API_KEY.',
   'page.modalError': 'No se pudo abrir el elemento seleccionado de la biblioteca.',
   'page.settingsWarning':
     'No se pudo leer el archivo de configuración; se usan los valores de fábrica.',

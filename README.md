@@ -114,15 +114,16 @@ cp .env.example .env
 Edit `.env` with at least:
 
 ```dotenv
-JELLYFIN_SERVER=http://host.docker.internal:8096
+JELLYFIN_URL=http://host.docker.internal:8096
 JELLYFIN_API_KEY=your_api_key
 ORIGIN=http://localhost:3000
 TZ=Europe/Madrid
 ```
 
-- `JELLYFIN_SERVER` is the address **as seen from the container**, without a
+- `JELLYFIN_URL` is the address **as seen from the container**, without a
   trailing slash. `localhost` there means the container itself; see
   [Connect the container to Jellyfin](#connect-the-container-to-jellyfin).
+- `JELLYFIN_SERVER` is accepted as a deprecated alias of `JELLYFIN_URL`.
 - `ORIGIN` must match the URL you open in the browser.
 - `TZ` only affects dates in logs.
 
@@ -167,10 +168,10 @@ More recipes, from a minimal container to Jellyfin plus GPU passthrough, are in
 
 ### Connect the container to Jellyfin
 
-`JELLYFIN_SERVER` is resolved inside the container, so it depends on where
+`JELLYFIN_URL` is resolved inside the container, so it depends on where
 Jellyfin runs:
 
-| Where Jellyfin runs             | `JELLYFIN_SERVER`                  |
+| Where Jellyfin runs             | `JELLYFIN_URL`                     |
 | ------------------------------- | ---------------------------------- |
 | Docker Desktop host             | `http://host.docker.internal:8096` |
 | Linux host, with `extra_hosts`  | `http://host.docker.internal:8096` |
@@ -190,7 +191,7 @@ Everything persistent lives in `./data`, mounted at `/data`:
 | --------------- | --------------------------- |
 | `settings.json` | Global defaults and presets |
 | `jobs/`         | Durable download jobs       |
-| `downloads/`    | Optional local output store |
+| `downloads/`    | Reusable local output store |
 | `logs/`         | Persisted JSONL logs        |
 
 The container runs as `node` (UID 1000). On Linux, a custom directory must be
@@ -206,6 +207,9 @@ docker compose up -d
 `stop_grace_period: 30s` lets the app persist job state on shutdown, so queued and
 running downloads resume after an update or restart. `docker compose down` keeps
 the bind-mounted data.
+
+At startup the server prints a banner with the URL, Jellyfin host, data directory
+and ffmpeg status, and records startup events in `logs/`.
 
 ### Hardware acceleration in Docker
 
@@ -226,13 +230,13 @@ when running natively on macOS; it does not exist in the Linux container.
 
 ### Docker troubleshooting
 
-| Symptom                           | Fix                                                                   |
-| --------------------------------- | --------------------------------------------------------------------- |
-| Cannot reach Jellyfin             | Check `JELLYFIN_SERVER`: use the host gateway, LAN IP or service name |
-| `permission denied` under `/data` | `sudo chown -R 1000:1000 ./data` (Linux)                              |
-| `port is already allocated`       | Set `JELLYFIN_DOWNLOADER_PORT` to a free port                         |
-| Container reports `unhealthy`     | `docker compose logs jellyfin-downloader`; verify port and `ORIGIN`   |
-| Job fails immediately             | Check `http://localhost:3000/api/v1/health` and the job logs          |
+| Symptom                           | Fix                                                                 |
+| --------------------------------- | ------------------------------------------------------------------- |
+| Cannot reach Jellyfin             | Check `JELLYFIN_URL`: use the host gateway, LAN IP or service name  |
+| `permission denied` under `/data` | `sudo chown -R 1000:1000 ./data` (Linux)                            |
+| `port is already allocated`       | Set `JELLYFIN_DOWNLOADER_PORT` to a free port                       |
+| Container reports `unhealthy`     | `docker compose logs jellyfin-downloader`; verify port and `ORIGIN` |
+| Job fails immediately             | Check `http://localhost:3000/api/v1/health` and the job logs        |
 
 See [docs/docker.md](docs/docker.md) for the image details and
 [docs/configuration.md](docs/configuration.md) for every variable.
@@ -244,7 +248,7 @@ Docker is recommended for production. To run from source, you need **Node.js
 
 ```bash
 cp .env.example .env
-# Edit .env with JELLYFIN_SERVER and JELLYFIN_API_KEY
+# Edit .env with JELLYFIN_URL and JELLYFIN_API_KEY
 pnpm install
 pnpm dev-remote
 ```
@@ -279,9 +283,10 @@ configure the output once. The app creates one durable job per selected episode.
 
 ### Downloads and reproducibility
 
-When the local store is enabled, results are reused by a deterministic key. Each
-download shows its preset/configuration badge; open it to see every option or
-replicate the configuration in the media dialog.
+When the local store is enabled (default), results are reused by a deterministic
+key. Each download shows its preset/configuration badge; open it to see every
+option or replicate the configuration in the media dialog. Set
+`SERVER_LOCAL_DOWNLOADS_ENABLED=false` to disable the store.
 
 ## Configuration
 
@@ -289,16 +294,18 @@ The most important variables are:
 
 | Variable                         | Default            | Purpose                                                 |
 | -------------------------------- | ------------------ | ------------------------------------------------------- |
-| `JELLYFIN_SERVER`                | —                  | Jellyfin base URL                                       |
+| `JELLYFIN_URL`                   | —                  | Jellyfin base URL                                       |
 | `JELLYFIN_API_KEY`               | —                  | Server-side Jellyfin API key                            |
 | `FFMPEG_PATH`                    | auto               | ffmpeg binary or directory                              |
 | `FFMPEG_HWACCEL`                 | `auto`             | `auto`, `none`, `videotoolbox`, `nvenc`, `qsv`, `vaapi` |
-| `SERVER_LOCAL_DOWNLOADS_ENABLED` | `false`            | Enable reusable local outputs                           |
+| `SERVER_LOCAL_DOWNLOADS_ENABLED` | `true`             | Reuse and keep finished downloads                       |
 | `SERVER_JOBS_DIR`                | `./data/jobs`      | Durable job state                                       |
 | `SERVER_LOCAL_DOWNLOADS_DIR`     | `./data/downloads` | Local output store                                      |
 | `SERVER_LOGS_DIR`                | `./data/logs`      | Persisted logs                                          |
 | `ORIGIN`                         | —                  | Public URL behind a reverse proxy                       |
 | `API_CORS_ORIGINS`               | empty              | Optional CORS allowlist                                 |
+
+`JELLYFIN_SERVER` still works as a deprecated alias of `JELLYFIN_URL`.
 
 The bundled `docker-compose.yml` also reads `JELLYFIN_DOWNLOADER_TAG`,
 `JELLYFIN_DOWNLOADER_PORT` and `SERVER_DATA_DIR` from `.env`.

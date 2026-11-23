@@ -2,7 +2,7 @@
 
 ## Jellyfin connection fails
 
-Check `JELLYFIN_SERVER` (include the port and any base path), the API key and
+Check `JELLYFIN_URL` (include the port and any base path), the API key and
 network access from the container/host. `/api/v1/health` reports configuration
 state; it intentionally does not call Jellyfin.
 
@@ -56,13 +56,25 @@ Common causes:
 Another tab changed the settings file. Reload `/settings` and save again. The
 server uses `revision` to prevent silent overwrites.
 
+## The settings file is not created
+
+The server writes `settings.json` at startup. If it is still missing, the data
+directory is not writable by the container user (UID 1000):
+
+```bash
+sudo chown -R 1000:1000 ./data
+```
+
+Startup errors are printed to the container log and recorded under
+**Settings → Logs**.
+
 ## A job does not resume after restart
 
 - Ensure `SERVER_JOBS_DIR` is persistent and shared across restarts.
 - In Docker, mount `./data:/data`.
 - Check that the app user can read/write the directory.
 - With local downloads disabled, temporary files may be gone; the job will
-  download the source again.
+  download the source again. The store is enabled by default.
 
 ## Language/theme does not change
 

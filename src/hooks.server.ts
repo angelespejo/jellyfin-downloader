@@ -1,9 +1,12 @@
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks'
 import { applyCors, corsHeaders } from '#api/_shared/api.js'
+import { start } from '#api/_shared/bootstrap.js'
 import { LOCALE_COOKIE, THEME_COOKIE } from '#const'
 import type { LocaleMode, ThemeMode } from '#lib/types.js'
 import { isLocaleMode, resolveLocaleMode } from '#lib/i18n/translate.js'
 import { logEvent } from '#api/_shared/logger.js'
+
+start()
 
 function isApi(pathname: string): boolean {
   return pathname === '/api' || pathname.startsWith('/api/')

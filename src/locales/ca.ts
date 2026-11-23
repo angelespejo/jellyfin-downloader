@@ -237,8 +237,6 @@ export const ca: Record<MessageKey, string> = {
   'settings.title': 'Configuració',
   'settings.subtitle':
     'Aquesta configuració es desa al servidor i es comparteix amb totes les descàrregues noves.',
-  'settings.noAuth':
-    'Sense autenticació integrada: qualsevol amb accés a aquesta instància pot canviar aquests ajustos. Fes-la servir darrere d’un reverse proxy o VPN.',
   'settings.help.language':
     'Automàtic usa el primer idioma del navegador: espanyol, català o anglès.',
   'settings.help.theme': 'Sistema segueix la configuració del sistema operatiu.',
@@ -323,8 +321,7 @@ export const ca: Record<MessageKey, string> = {
   'settings.presetSaved': 'Preset desat.',
   'settings.presetDeleted': 'Preset eliminat.',
 
-  'page.loadError':
-    'No s’ha pogut connectar amb Jellyfin. Revisa JELLYFIN_SERVER i JELLYFIN_API_KEY.',
+  'page.loadError': 'No s’ha pogut connectar amb Jellyfin. Revisa JELLYFIN_URL i JELLYFIN_API_KEY.',
   'page.modalError': 'No s’ha pogut obrir l’element seleccionat de la biblioteca.',
   'page.settingsWarning':
     'No s’ha pogut llegir el fitxer de configuració; s’usen els valors de fàbrica.',

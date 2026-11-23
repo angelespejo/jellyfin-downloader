@@ -337,7 +337,6 @@
 </div>
 
 {#if data.warning}<div class="note warn" role="status">{i18n.t('page.settingsWarning')}</div>{/if}
-<div class="note warn" style="margin-bottom: 1rem;">{i18n.t('settings.noAuth')}</div>
 
 {#if saveError}<div class="error-box" role="alert">{saveError}</div>{/if}
 {#if saveMessage}<div class="success-box" role="status">{saveMessage}</div>{/if}

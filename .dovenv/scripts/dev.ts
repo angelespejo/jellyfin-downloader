@@ -16,7 +16,7 @@ if (!existsSync(manifest)) {
 
 const env = {
   ...process.env,
-  JELLYFIN_SERVER: `http://127.0.0.1:${port}`,
+  JELLYFIN_URL: `http://127.0.0.1:${port}`,
   JELLYFIN_API_KEY: apiKey,
   SERVER_LOCAL_DOWNLOADS_ENABLED: 'true',
   SERVER_LOCAL_DOWNLOADS_DIR: './data/dev-downloads',

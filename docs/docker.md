@@ -12,7 +12,7 @@ subtitles work without extra mounts.
 
 ```bash
 cp .env.example .env
-# Set JELLYFIN_SERVER and JELLYFIN_API_KEY
+# Set JELLYFIN_URL and JELLYFIN_API_KEY
 mkdir -p data
 docker compose up -d
 ```
@@ -23,7 +23,7 @@ The root `docker-compose.yml` pulls the published image and stores state in
 - `/data/settings.json` — global settings and presets;
 - `/data/jobs` — durable job state;
 - `/data/logs` — persisted JSONL logs;
-- `/data/downloads` — optional local output store.
+- `/data/downloads` — reusable local output store.
 
 The container runs as `node` (UID 1000). Bind-mounted directories must be
 writable by that user.
@@ -33,8 +33,8 @@ live in [Docker Compose examples](docker-compose.md).
 
 ## Connecting to Jellyfin
 
-`JELLYFIN_SERVER` is resolved inside the container, so `localhost` is the
-container itself.
+`JELLYFIN_URL` is resolved inside the container, so `localhost` is the
+container itself. `JELLYFIN_SERVER` is accepted as a deprecated alias.
 
 | Where Jellyfin runs             | Value                              |
 | ------------------------------- | ---------------------------------- |
@@ -81,6 +81,9 @@ docker compose ps
 curl -s http://localhost:3000/api/v1/health
 ```
 
+Podman builds OCI images by default and ignores the Dockerfile `HEALTHCHECK`.
+Use `podman build --format docker` to keep it, or rely on `/api/v1/health`.
+
 ## Updating
 
 ```bash
@@ -97,7 +100,7 @@ time to persist state before shutdown.
 ```bash
 docker build -t jellyfin-downloader .
 docker run --rm -p 3000:3000 \
-  -e JELLYFIN_SERVER=http://host.docker.internal:8096 \
+  -e JELLYFIN_URL=http://host.docker.internal:8096 \
   -e JELLYFIN_API_KEY=... \
   -v "$PWD/data:/data" \
   jellyfin-downloader

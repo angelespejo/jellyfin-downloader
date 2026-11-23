@@ -32,7 +32,7 @@ The mock adds a synthetic series (`Public Domain Matinee`) with two episodes and
 a home video (`Garden Home Video`) on top of the three movie fixtures, so the
 catalog, episode browsing and item-type handling can be tested locally.
 
-`scripts/dev.ts` sets `JELLYFIN_SERVER`, `JELLYFIN_API_KEY` and development
+`scripts/dev.ts` sets `JELLYFIN_URL`, `JELLYFIN_API_KEY` and development
 state directories before starting Vite. `MOCK_STREAM_DELAY_MS` can add a
 delay to media responses for restart/resume testing.
 

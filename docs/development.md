@@ -32,6 +32,10 @@ pnpm release:dry  # preview the next release
 pnpm release      # bump, changelog, tag, GitHub release and Docker workflow
 ```
 
+The startup banner, data-directory preflight and job restore run when the server
+module loads. With `node build` they run immediately; `vite dev` runs them on the
+first request.
+
 `pnpm dev` automatically downloads the public-domain fixtures if they are
 missing, starts the mock API on `127.0.0.1:8096`, waits for it and then starts
 Vite on `localhost:5173`. It writes development settings, downloads and jobs to

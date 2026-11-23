@@ -232,8 +232,6 @@ export const en = {
   'settings.title': 'Settings',
   'settings.subtitle':
     'This configuration is stored on the server and shared by all new downloads.',
-  'settings.noAuth':
-    'No built-in authentication: anyone with access to this instance can change these settings. Put it behind a reverse proxy or VPN.',
   'settings.help.language':
     'Automatic uses the first browser language: Spanish, Catalan or English.',
   'settings.help.theme': 'System follows the operating system setting.',
@@ -315,7 +313,7 @@ export const en = {
   'settings.presetSaved': 'Preset saved.',
   'settings.presetDeleted': 'Preset deleted.',
 
-  'page.loadError': 'Could not connect to Jellyfin. Check JELLYFIN_SERVER and JELLYFIN_API_KEY.',
+  'page.loadError': 'Could not connect to Jellyfin. Check JELLYFIN_URL and JELLYFIN_API_KEY.',
   'page.modalError': 'Could not open the selected item from the library.',
   'page.settingsWarning': 'Could not read the settings file; factory defaults are being used.',
   'page.notFound': 'Page not found',

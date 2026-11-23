@@ -13,7 +13,7 @@ all name the container `jellyfin-downloader`. Examples that use
 - [2. Recommended: persistent data](#2-recommended-persistent-data)
 - [3. Pinned version and custom data directory](#3-pinned-version-and-custom-data-directory)
 - [4. Behind a reverse proxy](#4-behind-a-reverse-proxy)
-- [5. Local downloads store](#5-local-downloads-store)
+- [5. Local downloads store on a dedicated disk](#5-local-downloads-store-on-a-dedicated-disk)
 - [6. Hardware acceleration](#6-hardware-acceleration)
 - [7. Full stack with Jellyfin](#7-full-stack-with-jellyfin)
 - [Validate, update and remove](#validate-update-and-remove)
@@ -32,7 +32,7 @@ services:
     ports:
       - '3000:3000'
     environment:
-      JELLYFIN_SERVER: http://host.docker.internal:8096
+      JELLYFIN_URL: http://host.docker.internal:8096
       JELLYFIN_API_KEY: replace-with-your-api-key
       ORIGIN: http://localhost:3000
 ```
@@ -58,10 +58,11 @@ services:
     ports:
       - '${JELLYFIN_DOWNLOADER_PORT:-3000}:3000'
     environment:
-      JELLYFIN_SERVER: ${JELLYFIN_SERVER:?JELLYFIN_SERVER is required in .env}
+      JELLYFIN_URL: ${JELLYFIN_URL:-}
+      JELLYFIN_SERVER: ${JELLYFIN_SERVER:-}
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:?JELLYFIN_API_KEY is required in .env}
       FFMPEG_HWACCEL: ${FFMPEG_HWACCEL:-auto}
-      SERVER_LOCAL_DOWNLOADS_ENABLED: ${SERVER_LOCAL_DOWNLOADS_ENABLED:-false}
+      SERVER_LOCAL_DOWNLOADS_ENABLED: ${SERVER_LOCAL_DOWNLOADS_ENABLED:-true}
       SERVER_LOCAL_DOWNLOADS_MAX_GB: ${SERVER_LOCAL_DOWNLOADS_MAX_GB:-0}
       SERVER_LOCAL_DOWNLOADS_TTL_DAYS: ${SERVER_LOCAL_DOWNLOADS_TTL_DAYS:-0}
       SERVER_LOGS_RETENTION_DAYS: ${SERVER_LOGS_RETENTION_DAYS:-14}
@@ -75,7 +76,7 @@ services:
 With this file, keep a `.env` next to it:
 
 ```dotenv
-JELLYFIN_SERVER=http://host.docker.internal:8096
+JELLYFIN_URL=http://host.docker.internal:8096
 JELLYFIN_API_KEY=your_api_key
 ORIGIN=http://localhost:3000
 TZ=Europe/Madrid
@@ -90,6 +91,8 @@ docker compose up -d
 
 `stop_grace_period` gives the app 30 seconds to persist job state before the
 container stops, so queued and running downloads resume after a restart.
+`.env` files that still use `JELLYFIN_SERVER` keep working: it is a deprecated
+alias of `JELLYFIN_URL`.
 
 ## 3. Pinned version and custom data directory
 
@@ -107,7 +110,7 @@ services:
     ports:
       - '8080:3000'
     environment:
-      JELLYFIN_SERVER: http://192.168.1.20:8096
+      JELLYFIN_URL: http://192.168.1.20:8096
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:?JELLYFIN_API_KEY is required}
       ORIGIN: http://localhost:8080
       TZ: Europe/Madrid
@@ -140,7 +143,7 @@ services:
     ports:
       - '127.0.0.1:3000:3000'
     environment:
-      JELLYFIN_SERVER: http://host.docker.internal:8096
+      JELLYFIN_URL: http://host.docker.internal:8096
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:?JELLYFIN_API_KEY is required}
       ORIGIN: https://downloads.example.com
       TZ: Europe/Madrid
@@ -171,10 +174,11 @@ labels:
 If the proxy runs in another container, attach both to a shared network and drop
 the `ports` entry: the proxy reaches `http://jellyfin-downloader:3000` directly.
 
-## 5. Local downloads store
+## 5. Local downloads store on a dedicated disk
 
-Enables the reusable store under `/data/downloads`, so repeated downloads are
-served from disk. Point that path at a dedicated disk and cap its size.
+The reusable store under `/data/downloads` is enabled by default, so repeated
+downloads are served from disk. This example keeps it enabled, points it at a
+dedicated disk and caps its size.
 
 ```yaml
 services:
@@ -187,7 +191,7 @@ services:
     ports:
       - '3000:3000'
     environment:
-      JELLYFIN_SERVER: http://host.docker.internal:8096
+      JELLYFIN_URL: http://host.docker.internal:8096
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:?JELLYFIN_API_KEY is required}
       SERVER_LOCAL_DOWNLOADS_ENABLED: 'true'
       SERVER_LOCAL_DOWNLOADS_MAX_GB: '200'
@@ -219,7 +223,7 @@ services:
     ports:
       - '3000:3000'
     environment:
-      JELLYFIN_SERVER: http://host.docker.internal:8096
+      JELLYFIN_URL: http://host.docker.internal:8096
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:?JELLYFIN_API_KEY is required}
       FFMPEG_HWACCEL: vaapi
       FFMPEG_VAAPI_DEVICE: /dev/dri/renderD128
@@ -250,7 +254,7 @@ services:
     ports:
       - '3000:3000'
     environment:
-      JELLYFIN_SERVER: http://host.docker.internal:8096
+      JELLYFIN_URL: http://host.docker.internal:8096
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:?JELLYFIN_API_KEY is required}
       FFMPEG_HWACCEL: nvenc
     volumes:
@@ -299,7 +303,7 @@ services:
     ports:
       - '3000:3000'
     environment:
-      JELLYFIN_SERVER: http://jellyfin:8096
+      JELLYFIN_URL: http://jellyfin:8096
       JELLYFIN_API_KEY: ${JELLYFIN_API_KEY:?JELLYFIN_API_KEY is required}
       ORIGIN: http://localhost:3000
       TZ: Europe/Madrid

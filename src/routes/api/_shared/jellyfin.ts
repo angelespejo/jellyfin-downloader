@@ -4,8 +4,10 @@ import type {
   JellyfinItemsResult,
   JellyfinMediaSource,
   JellyfinMediaStream,
+  JellyfinSystemInfo,
 } from './jellyfin-types'
 import { JellyfinError } from './jellyfin-error'
+import { pickJellyfinUser, type JellyfinUser } from './jellyfin-user'
 
 export { JellyfinError } from './jellyfin-error'
 
@@ -34,6 +36,8 @@ const DETAIL_CACHE_MS = 60 * 1000
 class JellyfinClient {
   private readonly base: string
   private readonly apiKey: string
+  private userId: string | null | undefined = undefined
+  private userPromise: Promise<string | null> | null = null
   private listCache: CacheEntry<JellyfinItem[]> | null = null
   private listPromise: Promise<JellyfinItem[]> | null = null
   private readonly detailCache = new Map<string, CacheEntry<JellyfinItem>>()
@@ -141,6 +145,35 @@ class JellyfinClient {
     }
   }
 
+  /**
+   * Jellyfin 12+ requires a `userId` on item detail requests. The API key has no
+   * user context, so resolve one lazily and cache it. Failures do not break
+   * Jellyfin 10.x servers, where the parameter is optional.
+   */
+  private async resolveUserId(): Promise<string | null> {
+    if (this.userId !== undefined) return this.userId
+    if (this.userPromise) return this.userPromise
+    this.userPromise = this.requestJson<JellyfinUser[]>('/Users', { timeoutMs: 10_000 })
+      .then((users) => {
+        this.userId = pickJellyfinUser(users)
+        return this.userId
+      })
+      .catch((error) => {
+        if (error instanceof JellyfinError && (error.status === 401 || error.status === 403)) {
+          this.userId = null
+        }
+        return null
+      })
+      .finally(() => {
+        this.userPromise = null
+      })
+    return this.userPromise
+  }
+
+  async getSystemInfo(): Promise<JellyfinSystemInfo> {
+    return this.requestJson<JellyfinSystemInfo>('/System/Info', { timeoutMs: 8_000 })
+  }
+
   async listMovies(): Promise<JellyfinItem[]> {
     return this.listCatalog()
   }
@@ -214,6 +247,7 @@ class JellyfinClient {
   private async fetchSeriesEpisodes(seriesId: string): Promise<JellyfinItem[]> {
     const pageSize = 500
     const maxItems = 20_000
+    const userId = await this.resolveUserId()
     const items: JellyfinItem[] = []
     for (let start = 0; start < maxItems; start += pageSize) {
       const result = await this.requestJson<JellyfinItemsResult>(`/Shows/${seriesId}/Episodes`, {
@@ -226,6 +260,7 @@ class JellyfinClient {
           EnableTotalRecordCount: true,
           Limit: pageSize,
           StartIndex: start,
+          ...(userId ? { userId } : {}),
         },
       })
       const page = result.Items ?? []
@@ -244,10 +279,12 @@ class JellyfinClient {
     const cached = this.detailCache.get(id)
     if (cached && cached.expiresAt > Date.now()) return cached.value
 
+    const userId = await this.resolveUserId()
     const item = await this.requestJson<JellyfinItem>(`/Items/${id}`, {
       params: {
         Fields:
           'Type,ProductionYear,RunTimeTicks,Overview,ImageTags,PrimaryImageAspectRatio,MediaSources,SeriesId,SeriesName,SeasonId,ParentIndexNumber,IndexNumber',
+        ...(userId ? { userId } : {}),
       },
     })
     if (!item?.Id) throw new JellyfinError('Jellyfin did not return the requested item', 404)
@@ -339,7 +376,7 @@ let client: JellyfinClient | null = null
 export function getJellyfinClient(): JellyfinClient {
   if (!client) {
     const config = getConfig()
-    client = new JellyfinClient(config.jellyfinServer, config.jellyfinApiKey)
+    client = new JellyfinClient(config.jellyfinUrl, config.jellyfinApiKey)
   }
   return client
 }

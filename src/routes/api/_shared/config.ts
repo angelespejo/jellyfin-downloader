@@ -7,6 +7,7 @@ import {
   FFMPEG_VAAPI_DEVICE,
   JELLYFIN_API_KEY,
   JELLYFIN_SERVER,
+  JELLYFIN_URL,
   SERVER_LOCAL_DOWNLOADS_DIR,
   SERVER_LOCAL_DOWNLOADS_ENABLED,
   SERVER_LOCAL_DOWNLOADS_MAX_GB,
@@ -17,6 +18,7 @@ import {
   SERVER_JOBS_DIR,
 } from '$app/env/private'
 import { HARDWARE_MODES, type HardwareMode } from '#lib/types.js'
+import { envBoolean, pickFirstNonEmpty } from './env-values.js'
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -26,7 +28,7 @@ export class ConfigError extends Error {
 }
 
 export interface ServerConfig {
-  jellyfinServer: string
+  jellyfinUrl: string
   jellyfinApiKey: string
   ffmpegPath: string
   ffmpegCandidates: string[]
@@ -57,10 +59,6 @@ function parseNonNegativeNumber(value: string, name: string): number {
   return parsed
 }
 
-function parseBoolean(value: string): boolean {
-  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
-}
-
 function parseHardwareAcceleration(value: string): 'auto' | 'none' | HardwareMode {
   const normalized = value.trim().toLowerCase()
   if (!normalized) return 'auto'
@@ -80,22 +78,22 @@ function resolveSafePath(value: string, fallback: string, name: string): string 
   return resolved
 }
 
-function normalizeJellyfinServer(value: string): string {
+function normalizeJellyfinUrl(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) {
-    throw new ConfigError('JELLYFIN_SERVER is required')
+    throw new ConfigError('JELLYFIN_URL is required (JELLYFIN_SERVER is a deprecated alias)')
   }
   let url: URL
   try {
     url = new URL(trimmed)
   } catch {
-    throw new ConfigError('JELLYFIN_SERVER is not a valid URL')
+    throw new ConfigError('JELLYFIN_URL is not a valid URL')
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new ConfigError('JELLYFIN_SERVER must use http or https')
+    throw new ConfigError('JELLYFIN_URL must use http or https')
   }
   if (url.username || url.password) {
-    throw new ConfigError('JELLYFIN_SERVER must not include credentials in the URL')
+    throw new ConfigError('JELLYFIN_URL must not include credentials in the URL')
   }
   return url.toString().replace(/\/+$/, '')
 }
@@ -114,7 +112,7 @@ function validateApiKey(value: string): string {
 export function getConfig(): ServerConfig {
   if (cached) return cached
 
-  const localDownloadsEnabled = parseBoolean(SERVER_LOCAL_DOWNLOADS_ENABLED)
+  const localDownloadsEnabled = envBoolean(SERVER_LOCAL_DOWNLOADS_ENABLED, true)
   const maxGb = parseNonNegativeNumber(
     SERVER_LOCAL_DOWNLOADS_MAX_GB,
     'SERVER_LOCAL_DOWNLOADS_MAX_GB'
@@ -128,7 +126,7 @@ export function getConfig(): ServerConfig {
     : 14
 
   cached = {
-    jellyfinServer: normalizeJellyfinServer(JELLYFIN_SERVER),
+    jellyfinUrl: normalizeJellyfinUrl(pickFirstNonEmpty(JELLYFIN_URL, JELLYFIN_SERVER)),
     jellyfinApiKey: validateApiKey(JELLYFIN_API_KEY),
     ffmpegPath: FFMPEG_PATH.trim(),
     ffmpegCandidates: FFMPEG_CANDIDATES.split(path.delimiter)

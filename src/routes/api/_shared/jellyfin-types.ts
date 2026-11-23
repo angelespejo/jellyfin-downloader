@@ -52,3 +52,9 @@ export interface JellyfinItemsResult {
   Items?: JellyfinItem[]
   TotalRecordCount?: number
 }
+
+export interface JellyfinSystemInfo {
+  ServerName?: string
+  ProductName?: string
+  Version?: string
+}

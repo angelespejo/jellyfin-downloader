@@ -84,4 +84,4 @@ work and cleans up the working directory.
 - In Docker, `./data:/data` keeps jobs across container restarts.
 - With `SERVER_LOCAL_DOWNLOADS_ENABLED=false`, a Docker restart may lose the
   temporary working directory; the job still resumes by downloading the source
-  again.
+  again. The store is enabled by default.

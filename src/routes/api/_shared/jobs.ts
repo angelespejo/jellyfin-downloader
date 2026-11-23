@@ -758,6 +758,24 @@ class JobManager {
     }
 
     if (queue.length) setTimeout(() => void this.processQueue(), 0)
+
+    if (restored.length) {
+      let queued = 0
+      let ready = 0
+      let failed = 0
+      for (const persistedJob of restored) {
+        const state = jobs.get(persistedJob.id)?.state
+        if (state === 'queued' || state === 'running') queued += 1
+        else if (state === 'ready') ready += 1
+        else if (state === 'failed') failed += 1
+      }
+      void logEvent('info', 'jobs.restored', `Restored ${restored.length} job(s)`, {
+        total: restored.length,
+        queued,
+        ready,
+        failed,
+      })
+    }
   }
 
   async create(input: CreateDownloadRequest): Promise<DownloadJobStatus> {

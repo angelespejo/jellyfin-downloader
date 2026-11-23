@@ -53,7 +53,7 @@ The Node output can be verified without development dependencies:
 cp -R build /tmp/jellyfin-downloader-build
 cp package.json /tmp/jellyfin-downloader-build/
 cd /tmp/jellyfin-downloader-build
-JELLYFIN_SERVER=http://127.0.0.1:8096 \
+JELLYFIN_URL=http://127.0.0.1:8096 \
 JELLYFIN_API_KEY=dev-key \
 node build
 ```

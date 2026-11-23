@@ -3,8 +3,12 @@ import { defineEnvVars } from '@sveltejs/kit/env'
 const optional = (value: string | undefined): string => value ?? ''
 
 export const variables = defineEnvVars({
-  JELLYFIN_SERVER: {
+  JELLYFIN_URL: {
     description: 'Jellyfin server base URL (server only)',
+    schema: optional,
+  },
+  JELLYFIN_SERVER: {
+    description: 'Deprecated alias of JELLYFIN_URL (server only)',
     schema: optional,
   },
   JELLYFIN_API_KEY: {
