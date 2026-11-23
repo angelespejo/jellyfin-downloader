@@ -242,6 +242,7 @@ export const en = {
   'job.cancelledError': 'Download cancelled',
 
   'queue.title': 'Download queue',
+  'queue.openItem': 'Open {name}',
   'queue.empty': 'No active downloads.',
   'queue.activeCount': '{count} active',
   'queue.cancel': 'Cancel download',

@@ -229,6 +229,17 @@
     })
   }
 
+  function openItemById(id: string): void {
+    const url = modalUrl(id)
+    const current = `${locationUrl().pathname}${locationUrl().search}`
+    if (url === current) return
+    void goto(url, {
+      replace: false,
+      shallow: true,
+      reset: false,
+    })
+  }
+
   function reportModalError(message: string): void {
     modalError = message
     notifications.notify({ level: 'error', message })
@@ -531,6 +542,7 @@
     {initialConfigForId}
     {episodeId}
     onepisodechange={handleEpisodeChange}
+    onopenitem={openItemById}
     onclose={closeItem}
     onstored={(itemId) => {
       extraDownloads = { ...extraDownloads, [itemId]: (extraDownloads[itemId] ?? 0) + 1 }

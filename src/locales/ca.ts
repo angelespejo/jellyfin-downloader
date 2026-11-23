@@ -247,6 +247,7 @@ export const ca: Record<MessageKey, string> = {
   'job.cancelledError': 'Descàrrega cancel·lada',
 
   'queue.title': 'Cua de descàrregues',
+  'queue.openItem': 'Obre {name}',
   'queue.empty': 'No hi ha descàrregues actives.',
   'queue.activeCount': '{count} actives',
   'queue.cancel': 'Anul·la la descàrrega',

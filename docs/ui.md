@@ -38,8 +38,10 @@ viewport and paints above the sticky header and footer.
 - **Downloads (N)** — local results for that movie, home video or episode, with
   size, date, download link, configuration badge and a styled delete
   confirmation. A series lists downloads for all of its episodes.
-- **Queue (N)** — every active download, with stage, progress or queue position,
-  original size, configuration badge/popover and a cancel action.
+- **Queue (N)** — active downloads for this movie or episode; on a series list it
+  shows every episode of that series. Each row shows stage, progress or queue
+  position, original size, configuration badge/popover and a cancel action; the
+  title opens that item in the dialog.
 
 The tabs remain pinned below the modal title while the body scrolls. Output
 files are named `Title (year) - Preset.ext`, or `Title (year) - custom.ext`
@@ -76,7 +78,7 @@ and returns focus to the card.
 `/downloads` shows a **Downloading now** section above the stored files:
 
 - active jobs with title, filename, stage, progress bar or queue position, plus
-  the original source size;
+  the original source size; clicking the title opens the media dialog;
 - cancel action with a styled confirmation dialog;
 - when a job finishes it leaves the queue and the stored list refreshes
   automatically.

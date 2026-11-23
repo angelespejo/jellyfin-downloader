@@ -78,8 +78,9 @@ light and dark** themes.
   is available, with a software fallback.
 - **Download series in batches**: seasons collapsed by default, unavailable
   virtual episodes excluded, and one configuration for the selection.
-- **Watch the queue**: active downloads appear on the cards and in a dedicated
-  queue tab, and can be cancelled from the dialog or the downloads page.
+- **Watch the queue**: active downloads appear on the cards and in a queue tab
+  filtered to the open title or series, and can be cancelled from the dialog or
+  the downloads page. Clicking a queue title opens that item.
 - **Reuse local results** with deterministic cache keys and replicate a previous
   configuration from its badge.
 - **See processing time** and original source size for every finished download.

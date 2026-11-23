@@ -14,9 +14,9 @@ All notable changes are documented here. The format follows
   restored jobs, Jellyfin connectivity, ffmpeg/hardware and the missing
   authentication warning.
 - `JELLYFIN_SERVER` is accepted as a deprecated alias of `JELLYFIN_URL`.
-- Active download queue: card badges, a queue tab in the media dialog, a
-  **Downloading now** section on the downloads page, configuration badges and
-  cancel actions.
+- Active download queue: card badges, a queue tab in the media dialog filtered to
+  the open title or series, a **Downloading now** section on the downloads page,
+  clickable queue titles, configuration badges and cancel actions.
 - Play in Jellyfin link in the media dialog, redirected server-side to avoid
   exposing the internal Jellyfin URL.
 - Episode deep links: the dialog URL switches to the episode id, keeping a back

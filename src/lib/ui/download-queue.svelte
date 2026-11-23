@@ -9,11 +9,22 @@
   import Icon from '#lib/components/icon.svelte'
   import DownloadConfigBadge from '#lib/ui/download-config-badge.svelte'
 
-  let { compact = false, hideEmpty = false }: { compact?: boolean; hideEmpty?: boolean } = $props()
+  let {
+    compact = false,
+    hideEmpty = false,
+    jobs = null,
+    onopen,
+  }: {
+    compact?: boolean
+    hideEmpty?: boolean
+    jobs?: DownloadJobStatus[] | null
+    onopen?: (job: DownloadJobStatus) => void
+  } = $props()
 
   const i18n = getI18n()
   const notifications = getNotifications()
   const queue = getDownloadQueue()
+  const visibleJobs = $derived(jobs ?? queue.jobs)
 
   let pendingCancel = $state<DownloadJobStatus | null>(null)
   let cancelling = $state<string | null>(null)
@@ -53,18 +64,35 @@
   <div class="error-box" role="alert">{i18n.t('queue.error')}</div>
 {/if}
 
-{#if queue.jobs.length === 0}
+{#if visibleJobs.length === 0}
   {#if !hideEmpty}
     <p class="muted small">{i18n.t('queue.empty')}</p>
   {/if}
 {:else}
   <ul class="queue-list" aria-label={i18n.t('queue.title')}>
-    {#each queue.jobs as job (job.id)}
+    {#each visibleJobs as job (job.id)}
       {@const value = percent(job)}
       <li class="queue-item">
         <div class="queue-head">
           <div class="queue-titles">
-            <span class="queue-title" title={job.title}>{job.title}</span>
+            {#if onopen}
+              <button
+                type="button"
+                class="queue-title queue-title-action"
+                title={i18n.t('queue.openItem', { name: job.title })}
+                onclick={() => onopen?.(job)}
+              >
+                {job.title}
+              </button>
+            {:else}
+              <a
+                class="queue-title queue-title-action"
+                href={`/?modal=${encodeURIComponent(job.movieId)}`}
+                title={i18n.t('queue.openItem', { name: job.title })}
+              >
+                {job.title}
+              </a>
+            {/if}
             <span class="muted small queue-file" title={job.filename}>{job.filename}</span>
           </div>
           <span class="badge accent">
@@ -179,6 +207,26 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 650;
+  }
+
+  .queue-title-action {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 650;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .queue-title-action:hover,
+  .queue-title-action:focus-visible {
+    color: var(--accent);
+    text-decoration: underline;
   }
 
   .queue-file {

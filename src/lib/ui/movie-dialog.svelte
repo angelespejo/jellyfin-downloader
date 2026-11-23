@@ -51,6 +51,7 @@
     initialConfigForId = null,
     episodeId = null,
     onepisodechange,
+    onopenitem,
   }: {
     movie: MovieSummary
     settings: SettingsDocument
@@ -63,6 +64,7 @@
     initialConfigForId?: string | null
     episodeId?: string | null
     onepisodechange?: (id: string | null) => void
+    onopenitem?: (id: string) => void
   } = $props()
 
   const i18n = getI18n()
@@ -162,6 +164,14 @@
     }
     return activeItem.downloadCount + (countAdjustments[activeItem.id] ?? 0)
   })
+  const queueJobs = $derived.by(() => {
+    if (isSeries) {
+      const episode = selectedEpisode
+      if (episode) return queue.jobs.filter((job) => job.movieId === episode.id)
+      return queue.jobs.filter((job) => job.seriesId === movie.id)
+    }
+    return queue.jobs.filter((job) => job.movieId === movie.id)
+  })
   const dialogTitle = $derived.by(() => {
     const base = selectedEpisode ? `${movie.title} · ${episodeCode(selectedEpisode)}` : movie.title
     const year = detail?.year ?? activeItem.year ?? movie.year
@@ -170,7 +180,7 @@
   const tabItems = $derived<TabItem[]>([
     { id: 'details', label: i18n.t('detail.tab.details') },
     { id: 'downloads', label: i18n.t('detail.tab.downloadsCount', { count: downloadsCount }) },
-    { id: 'queue', label: i18n.t('detail.tab.queueCount', { count: queue.jobs.length }) },
+    { id: 'queue', label: i18n.t('detail.tab.queueCount', { count: queueJobs.length }) },
   ])
   const posterId = $derived(
     seriesListMode ? movie.id : activeItem.imageTag ? activeItem.id : movie.id
@@ -561,6 +571,21 @@
     selectedEpisode = null
     activeTab = 'details'
     onepisodechange?.(null)
+  }
+
+  function openQueuedItem(job: DownloadJobStatus): void {
+    if (isSeries) {
+      const episode = series?.episodes.find((candidate) => candidate.id === job.movieId)
+      if (episode) {
+        selectEpisode(episode)
+        return
+      }
+    }
+    if (job.movieId === movie.id) {
+      activeTab = 'details'
+      return
+    }
+    onopenitem?.(job.movieId)
   }
 
   function adjustEpisodeCount(itemId: string, delta: number): void {
@@ -2011,7 +2036,7 @@
           <div class="downloads-head">
             <p class="section-title" style="margin: 0;">{i18n.t('detail.tab.queue')}</p>
           </div>
-          <DownloadQueue compact />
+          <DownloadQueue compact jobs={queueJobs} onopen={openQueuedItem} />
         </div>
       </div>
     {/if}

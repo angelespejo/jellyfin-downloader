@@ -246,6 +246,7 @@ export const es: Record<MessageKey, string> = {
   'job.cancelledError': 'Descarga cancelada',
 
   'queue.title': 'Cola de descargas',
+  'queue.openItem': 'Abrir {name}',
   'queue.empty': 'No hay descargas activas.',
   'queue.activeCount': '{count} activas',
   'queue.cancel': 'Anular descarga',
