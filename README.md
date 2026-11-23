@@ -64,7 +64,7 @@ light and dark** themes.
 ## What it does
 
 - **Search movies, series and home videos** using Jellyfin's native search, with
-  deep-linkable results, poster cards and infinite scroll with pagination.
+  deep-linkable results, poster cards and infinite scroll in pages of 20.
 - **Inspect real media sources**: video resolution, container, size, audio
   languages, subtitle tracks and multiple versions.
 - **Open the item in Jellyfin** from the media dialog with the play button.
@@ -156,7 +156,7 @@ Useful options in `.env`:
 
 | Variable                   | Default  | Purpose                           |
 | -------------------------- | -------- | --------------------------------- |
-| `JELLYFIN_DOWNLOADER_TAG`  | `latest` | Pin `0.2`, `0.2.1` or `latest`    |
+| `JELLYFIN_DOWNLOADER_TAG`  | `latest` | Pin `0.2`, `0.2.2` or `latest`    |
 | `JELLYFIN_DOWNLOADER_PORT` | `3000`   | Host port                         |
 | `SERVER_DATA_DIR`          | `./data` | Host directory mounted at `/data` |
 

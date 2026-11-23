@@ -1,6 +1,6 @@
 {
   "name": "jellyfin-downloader",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Self-hosted Jellyfin movie, series and home video downloader built with ffmpeg.",
   "private": true,
   "type": "module",

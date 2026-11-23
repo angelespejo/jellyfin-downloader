@@ -6,6 +6,22 @@ All notable changes are documented here. The format follows
 
 ## Unreleased
 
+## v0.2.2 - 2026-11-23
+
+### Fixed
+
+- The system theme now uses the dark informational palette, so badges and the
+  empty-state icon are readable when the operating system is dark.
+- The media dialog uses theme-specific surfaces and backdrop tokens; in the light
+  theme it is no longer a dark gray panel.
+- Primary buttons and the project-info link keep a readable hover state in dark
+  and system themes.
+
+### Documentation
+
+- Refreshed the README screenshots with the current queue, pause, pagination and
+  dialog design.
+
 ## v0.2.1 - 2026-11-23
 
 ### Fixed
@@ -112,7 +128,8 @@ All notable changes are documented here. The format follows
 - English, Spanish and Catalan UI with system, light and dark themes.
 - Docker image, CI, Dependabot and release automation.
 
-[Unreleased]: https://github.com/angelespejo/jellyfin-downloader/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/angelespejo/jellyfin-downloader/compare/v0.2.2...HEAD
+[v0.2.2]: https://github.com/angelespejo/jellyfin-downloader/releases/tag/v0.2.2
 [v0.2.1]: https://github.com/angelespejo/jellyfin-downloader/releases/tag/v0.2.1
 [v0.2.0]: https://github.com/angelespejo/jellyfin-downloader/releases/tag/v0.2.0
 [v0.1.0]: https://github.com/angelespejo/jellyfin-downloader/releases/tag/v0.1.0

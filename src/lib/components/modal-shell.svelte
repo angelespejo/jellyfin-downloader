@@ -152,7 +152,7 @@
     display: grid;
     place-items: center;
     padding: 1rem;
-    background: rgba(3, 5, 8, 0.68);
+    background: var(--modal-backdrop);
     -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(10px);
   }
@@ -165,7 +165,7 @@
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 18px;
-    background: color-mix(in srgb, var(--surface) 75%, transparent);
+    background: var(--modal-surface);
     -webkit-backdrop-filter: blur(20px) saturate(1.12);
     backdrop-filter: blur(20px) saturate(1.12);
     box-shadow: var(--shadow);
@@ -179,7 +179,7 @@
     gap: 1rem;
     padding: 1rem 1.2rem;
     border-bottom: 1px solid var(--line);
-    background: color-mix(in srgb, var(--surface) 60%, transparent);
+    background: var(--modal-head);
     -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
   }
