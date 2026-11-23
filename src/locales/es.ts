@@ -63,6 +63,8 @@ export const es: Record<MessageKey, string> = {
   'common.loading': 'Cargando…',
   'common.loadMore': 'Cargar más',
   'common.loadingMore': 'Cargando más…',
+  'common.originalSize': 'Original · {size}',
+  'common.originalSizeHint': 'Tamaño del archivo original en Jellyfin',
   'common.retry': 'Reintentar',
   'common.cancel': 'Cancelar',
   'common.close': 'Cerrar',

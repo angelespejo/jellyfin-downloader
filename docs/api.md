@@ -143,8 +143,8 @@ or `Title (year) - custom.ext` when no preset was used.
   `processing-video`, `extracting-audio`, `extracting-subtitles`, `packaging`,
   `finalizing`.
 - `progress` is `0..1` or `null`.
-- `title`, `filename`, `movieId` and `seriesId` identify the job without extra
-  requests.
+- `title`, `filename`, `movieId`, `seriesId` and `sourceSizeBytes` identify the
+  job and its original weight without extra requests.
 - `cached` means the result existed in the local store before this request.
 - `stored` means the result is kept for reuse.
 - `output.kind`: `file` or `zip`.
@@ -171,7 +171,7 @@ support (206/416). It is available when `state=ready`.
 
 ## Local downloads
 
-`GET /local-downloads` returns the stored files with `filename`, `sizeBytes`, `createdAt`, `kind`, optional movie/series metadata, `config` and a stable `downloadUrl`. `config` contains the preset and effective options used; it is `null` for legacy entries. Use `?movieId=` for one playable item or `?seriesId=` for every episode of a series. The server never exposes an absolute filesystem path.
+`GET /local-downloads` returns the stored files with `filename`, `sizeBytes`, `sourceSizeBytes`, `createdAt`, `kind`, optional movie/series metadata, `config` and a stable `downloadUrl`. `config` contains the preset and effective options used; it is `null` for legacy entries. Use `?movieId=` for one playable item or `?seriesId=` for every episode of a series. The server never exposes an absolute filesystem path.
 
 `GET /local-downloads/{key}` returns the same metadata for one entry. The UI uses it to replicate a download configuration.
 

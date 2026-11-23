@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DownloadJobStatus } from '#lib/types.js'
+  import { formatBytes } from '#lib/format.js'
   import { getI18n } from '#core/i18n.svelte.js'
   import { getNotifications } from '#core/notifications.svelte.js'
   import { getDownloadQueue } from '#core/download-queue.svelte.js'
@@ -95,9 +96,18 @@
           </p>
         {/if}
 
-        {#if !compact}
+        {#if job.sourceSizeBytes || !compact}
           <div class="queue-meta">
-            <span>{job.expectedFiles > 1 ? i18n.t('job.zip') : i18n.t('job.file')}</span>
+            {#if job.sourceSizeBytes}
+              <span title={i18n.t('common.originalSizeHint')}>
+                {i18n.t('common.originalSize', {
+                  size: formatBytes(job.sourceSizeBytes, i18n.locale),
+                })}
+              </span>
+            {/if}
+            {#if !compact}
+              <span>{job.expectedFiles > 1 ? i18n.t('job.zip') : i18n.t('job.file')}</span>
+            {/if}
           </div>
         {/if}
 

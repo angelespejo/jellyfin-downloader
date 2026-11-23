@@ -60,6 +60,8 @@ export const en = {
   'common.loading': 'Loading…',
   'common.loadMore': 'Load more',
   'common.loadingMore': 'Loading more…',
+  'common.originalSize': 'Original · {size}',
+  'common.originalSizeHint': 'Size of the Jellyfin source file',
   'common.retry': 'Retry',
   'common.cancel': 'Cancel',
   'common.close': 'Close',

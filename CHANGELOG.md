@@ -22,6 +22,7 @@ All notable changes are documented here. The format follows
 - Collapsible output, audio and subtitle sections in the media dialog.
 - Selected-version weight in the dialog, series total weight, and the year in the
   dialog title.
+- Original source weight in the queue rows and stored download cards.
 - Tooltips on the media badges.
 - `docs/docker-compose.md` with progressive examples: minimal, persistent, pinned
   version, reverse proxy, local downloads store, GPU passthrough and a full stack
@@ -38,6 +39,8 @@ All notable changes are documented here. The format follows
   Settings; it is logged on startup.
 - The library page no longer loads the whole catalog during SSR; search results
   are paginated on the server as the user scrolls.
+- Deleting a stored download confirms with a floating toast instead of an inline
+  notice.
 - The bundled `docker-compose.yml` pulls the published
   `ghcr.io/angelespejo/jellyfin-downloader` image instead of building locally.
 - The README documents the Docker installation step by step and links to the

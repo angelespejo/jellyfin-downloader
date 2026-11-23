@@ -20,7 +20,6 @@
   let items = $state<LocalDownloadInfo[]>(data.items)
   // svelte-ignore state_referenced_locally
   let storage = $state(data.storage)
-  let message = $state<string | null>(null)
   let error = $state<string | null>(null)
   let deleting = $state<string | null>(null)
   let pendingDelete = $state<LocalDownloadInfo | null>(null)
@@ -53,7 +52,6 @@
     if (!item) return
     deleting = item.key
     error = null
-    message = null
     try {
       const response = await fetch(`/api/v1/local-downloads/${item.key}`, {
         method: 'DELETE',
@@ -70,8 +68,8 @@
         usedBytes: Math.max(0, storage.usedBytes - item.sizeBytes),
         objects: Math.max(0, storage.objects - 1),
       }
-      message = i18n.t('downloads.deleted')
-      notifications.notify({ level: 'success', message })
+      const notice = i18n.t('downloads.deleted')
+      notifications.notify({ level: 'success', message: notice })
     } catch {
       error = i18n.t('errors.INTERNAL_ERROR')
       notifications.notify({ level: 'error', message: error })
@@ -104,7 +102,6 @@
 
 {#if data.warning}<div class="note warn" role="status">{i18n.t('errors.INTERNAL_ERROR')}</div>{/if}
 {#if error}<div class="error-box" role="alert">{error}</div>{/if}
-{#if message}<div class="success-box" role="status">{message}</div>{/if}
 
 <section class="queue-section" aria-labelledby="queue-title">
   {#if queue.jobs.length > 0}
@@ -185,6 +182,13 @@
           <span>
             {i18n.t('downloads.size', { size: formatBytes(item.sizeBytes, i18n.locale) })}
           </span>
+          {#if item.sourceSizeBytes}
+            <span title={i18n.t('common.originalSizeHint')}>
+              {i18n.t('common.originalSize', {
+                size: formatBytes(item.sourceSizeBytes, i18n.locale),
+              })}
+            </span>
+          {/if}
           <span>
             {i18n.t('downloads.date', { date: formatTimestamp(item.createdAt, i18n.locale) })}
           </span>

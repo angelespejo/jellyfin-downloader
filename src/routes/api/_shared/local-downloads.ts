@@ -20,6 +20,7 @@ export interface StoredObjectMeta {
   movieTitle?: string | null
   movieYear?: number | null
   sourceId?: string | null
+  sourceSizeBytes?: number | null
   config?: DownloadConfig | null
 }
 
@@ -96,7 +97,10 @@ function parseMeta(raw: string, expectedKey: string): StoredObjectMeta | null {
         !Number.isInteger(value.movieYear)) ||
       (value.sourceId !== undefined &&
         value.sourceId !== null &&
-        typeof value.sourceId !== 'string')
+        typeof value.sourceId !== 'string') ||
+      (value.sourceSizeBytes !== undefined &&
+        value.sourceSizeBytes !== null &&
+        (!Number.isInteger(value.sourceSizeBytes) || (value.sourceSizeBytes as number) < 0))
     ) {
       return null
     }
@@ -115,6 +119,7 @@ function toInfo(key: string, meta: StoredObjectMeta): LocalDownloadInfo {
     key,
     filename: meta.filename,
     sizeBytes: meta.sizeBytes,
+    sourceSizeBytes: meta.sourceSizeBytes ?? null,
     createdAt: meta.createdAt,
     kind: meta.kind,
     movieId: meta.movieId ?? null,
@@ -247,6 +252,7 @@ export class LocalDownloadsStore {
     movieTitle?: string | null
     movieYear?: number | null
     sourceId?: string | null
+    sourceSizeBytes?: number | null
     config?: DownloadConfig | null
   }): Promise<StoredObject | null> {
     if (!this.enabled) return null
@@ -286,6 +292,7 @@ export class LocalDownloadsStore {
       movieTitle: input.movieTitle ?? null,
       movieYear: input.movieYear ?? null,
       sourceId: input.sourceId ?? null,
+      sourceSizeBytes: input.sourceSizeBytes ?? null,
       config: input.config ?? null,
     }
     const metaTemp = path.join(directory, `meta.json.tmp-${randomUUID()}`)

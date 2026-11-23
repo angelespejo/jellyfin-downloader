@@ -69,17 +69,17 @@ and returns focus to the card.
 
 `/downloads` shows a **Downloading now** section above the stored files:
 
-- active jobs with title, filename, stage, progress bar or queue position;
+- active jobs with title, filename, stage, progress bar or queue position, plus
+  the original source size;
 - cancel action with a styled confirmation dialog;
 - when a job finishes it leaves the queue and the stored list refreshes
   automatically.
-
-The stored section lists every object in the server local store:
+  The stored section lists every object in the server local store:
 
 - filename and optional movie/year;
 - a link back to the media dialog (`/?modal=<item id>`) when the Jellyfin item
   is known;
-- size, date, type and a preset/custom configuration badge;
+- size, original source size, date, type and a preset/custom configuration badge;
 - a hover/focus popover with the exact configuration and a **Replicate**
   action that opens the dialog prefilled through `?modal=<id>&from=<key>`;
 - stable download URL;

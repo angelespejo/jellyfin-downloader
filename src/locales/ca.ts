@@ -63,6 +63,8 @@ export const ca: Record<MessageKey, string> = {
   'common.loading': 'Carregant…',
   'common.loadMore': 'Carrega’n més',
   'common.loadingMore': 'Carregant-ne més…',
+  'common.originalSize': 'Original · {size}',
+  'common.originalSizeHint': 'Mida del fitxer original a Jellyfin',
   'common.retry': 'Torna-ho a provar',
   'common.cancel': 'Cancel·la',
   'common.close': 'Tanca',

@@ -85,7 +85,6 @@
   let downloadsEnabled = $state(true)
   let downloadsLoading = $state(false)
   let downloadsError = $state<string | null>(null)
-  let downloadsMessage = $state<string | null>(null)
   let downloadsRequest = 0
   let deleting = $state(false)
   let pendingDelete = $state<LocalDownloadInfo | null>(null)
@@ -500,7 +499,6 @@
     if (!item || deleting) return
     deleting = true
     downloadsError = null
-    downloadsMessage = null
     try {
       const response = await fetch(`/api/v1/local-downloads/${encodeURIComponent(item.key)}`, {
         method: 'DELETE',
@@ -517,8 +515,8 @@
         adjustEpisodeCount(item.movieId, -1)
         if (isSeries && movie.id !== item.movieId) ondeleted?.(movie.id)
       }
-      downloadsMessage = i18n.t('detail.downloads.deleted')
-      notifications.notify({ level: 'success', message: downloadsMessage })
+      const notice = i18n.t('detail.downloads.deleted')
+      notifications.notify({ level: 'success', message: notice })
       pendingDelete = null
       await loadDownloads()
     } catch {
@@ -1757,9 +1755,6 @@
           </div>
 
           <div class="downloads-status" aria-live="polite">
-            {#if downloadsMessage}
-              <div class="success-box" role="status">{downloadsMessage}</div>
-            {/if}
             {#if downloadsError}
               <div class="error-box" role="alert">{downloadsError}</div>
             {/if}

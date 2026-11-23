@@ -186,6 +186,7 @@ function toStatus(job: JobRecord): DownloadJobStatus {
     filename: job.plan.downloadName,
     movieId: job.plan.movieId,
     seriesId: job.plan.seriesId ?? null,
+    sourceSizeBytes: job.plan.sourceSizeBytes,
     state: job.state,
     stage: job.stage,
     progress: job.progress,
@@ -591,6 +592,7 @@ async function finalizeOutput(
     movieTitle: job.plan.movieTitle,
     movieYear: job.plan.movieYear,
     sourceId: job.plan.sourceId,
+    sourceSizeBytes: job.plan.sourceSizeBytes,
     config: job.plan.config ?? null,
   })
 
