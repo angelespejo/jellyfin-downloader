@@ -27,5 +27,8 @@ export const COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 export const DEFAULT_LOCALE_MODE = 'auto' as const
 export const DEFAULT_THEME = 'system' as const
 
+/** Maximum number of records rendered per page before loading more on scroll. */
+export const PAGE_SIZE = 20
+
 export const THEME_COLOR_LIGHT = '#f2f4f7'
 export const THEME_COLOR_DARK = '#07080a'

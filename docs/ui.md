@@ -6,7 +6,7 @@
 
 - centered search field, reflected in the URL as `?q=` (debounced, `replace`
   history);
-- server-side search with pages of 48 results and infinite scroll (plus a visible
+- server-side search with pages of 20 results and infinite scroll (plus a visible
   **Load more** button); search uses Jellyfin's native terms instead of loading
   the whole catalog;
 - an initial empty state until the user types a query — no cards are rendered
@@ -96,7 +96,8 @@ Paused jobs survive a server restart and are kept for 7 days.
 - cancel action with a styled confirmation dialog;
 - when a job finishes it leaves the queue and the stored list refreshes
   automatically.
-  The stored section lists every object in the server local store:
+  The stored section shows 20 objects at a time and loads the next page when the
+  user scrolls to the end, with a visible **Load more** fallback:
 
 - filename and optional movie/year;
 - a link back to the media dialog (`/?modal=<item id>`) when the Jellyfin item
@@ -121,8 +122,8 @@ which environment variable enables it.
 - **Defaults** — output defaults with help text.
 - **Presets** — list, create, edit and delete presets, including their tags.
 - **Storage** — local-store status and a link to `/downloads`.
-- **Logs** — filter, inspect, download and clear persisted server logs, with
-  infinite scroll and a visible **Load more** fallback.
+- **Logs** — filter, inspect, download and clear persisted server logs, in pages
+  of 20 entries with infinite scroll and a visible **Load more** fallback.
 
 Preset creation/editing uses a modal (`ModalShell`) so the page stays compact.
 Tags are entered as a comma-separated list and default to `default`. Deleting a

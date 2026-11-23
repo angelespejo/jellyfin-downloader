@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types'
-  import type { LocalDownloadInfo } from '#lib/types.js'
+  import type { LocalDownloadInfo, LocalDownloadsPage } from '#lib/types.js'
   import { formatBytes, formatProcessingTime, formatTimestamp } from '#lib/format.js'
   import { getI18n } from '#core/i18n.svelte.js'
   import { getNotifications } from '#core/notifications.svelte.js'
@@ -10,6 +10,8 @@
   import DownloadConfigBadge from '#lib/ui/download-config-badge.svelte'
   import DownloadQueue from '#lib/ui/download-queue.svelte'
   import { getDownloadQueue } from '#core/download-queue.svelte.js'
+  import { infiniteScroll } from '#lib/actions/infinite-scroll.js'
+  import { PAGE_SIZE } from '#const'
 
   let { data }: { data: PageData } = $props()
   const i18n = getI18n()
@@ -19,26 +21,53 @@
   // svelte-ignore state_referenced_locally
   let items = $state<LocalDownloadInfo[]>(data.items)
   // svelte-ignore state_referenced_locally
+  let total = $state(data.total)
+  // svelte-ignore state_referenced_locally
   let storage = $state(data.storage)
+  let loadingMore = $state(false)
+  let loadRequest = 0
   let error = $state<string | null>(null)
   let deleting = $state<string | null>(null)
   let pendingDelete = $state<LocalDownloadInfo | null>(null)
   let previousActive = 0
 
-  async function refreshStored(): Promise<void> {
+  const hasMore = $derived(items.length < total)
+
+  async function loadStored(append = false): Promise<void> {
+    if (append && (loadingMore || !hasMore)) return
+    const requestId = ++loadRequest
+    const requestOffset = append ? items.length : 0
+    if (append) loadingMore = true
     try {
-      const response = await fetch('/api/v1/local-downloads')
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(requestOffset),
+      })
+      const response = await fetch(`/api/v1/local-downloads?${params}`)
       if (!response.ok) return
-      const payload = (await response.json()) as { enabled: boolean; items: LocalDownloadInfo[] }
-      items = payload.items ?? []
+      const payload = (await response.json()) as LocalDownloadsPage
+      if (requestId !== loadRequest) return
+      if (append) {
+        const seen = new Set(items.map((item) => item.key))
+        items = [...items, ...payload.items.filter((item) => !seen.has(item.key))]
+      } else {
+        items = payload.items
+      }
+      total = payload.total ?? items.length
       storage = {
         enabled: payload.enabled,
-        usedBytes: items.reduce((total, item) => total + item.sizeBytes, 0),
-        objects: items.length,
+        usedBytes: payload.usedBytes,
+        objects: payload.objects,
       }
     } catch {
       // keep the current list when the refresh fails
+    } finally {
+      if (requestId === loadRequest) loadingMore = false
     }
+  }
+
+  function refreshStored(): Promise<void> {
+    return loadStored(false)
   }
 
   $effect(() => {
@@ -63,6 +92,7 @@
         return
       }
       items = items.filter((candidate) => candidate.key !== item.key)
+      total = Math.max(0, total - 1)
       storage = {
         ...storage,
         usedBytes: Math.max(0, storage.usedBytes - item.sizeBytes),
@@ -133,7 +163,7 @@
   />
 {:else if items.length > 0}
   <div class="search-meta">
-    <span class="muted small">{i18n.t('downloads.count', { count: items.length })}</span>
+    <span class="muted small">{i18n.t('downloads.count', { count: total })}</span>
   </div>
   <div class="downloads-grid">
     {#each items as item (item.key)}
@@ -220,6 +250,24 @@
       </article>
     {/each}
   </div>
+  {#if hasMore}
+    <div
+      class="load-more"
+      use:infiniteScroll={{
+        enabled: hasMore && !loadingMore,
+        load: () => void loadStored(true),
+      }}
+    >
+      <button
+        type="button"
+        class="ghost hover-shine"
+        disabled={loadingMore}
+        onclick={() => void loadStored(true)}
+      >
+        {loadingMore ? i18n.t('common.loadingMore') : i18n.t('common.loadMore')}
+      </button>
+    </div>
+  {/if}
 {/if}
 
 <ConfirmDialog
@@ -241,6 +289,12 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1rem;
+  }
+
+  .load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
   }
 
   .download-card {

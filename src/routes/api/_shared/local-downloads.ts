@@ -347,6 +347,32 @@ export class LocalDownloadsStore {
     return items.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
   }
 
+  async listPage(
+    options: {
+      limit?: number
+      offset?: number
+      movieId?: string | null
+      seriesId?: string | null
+    } = {}
+  ): Promise<{ items: LocalDownloadInfo[]; total: number; usedBytes: number; objects: number }> {
+    const all = await this.list()
+    const limit = Math.min(100, Math.max(1, options.limit ?? 20))
+    const offset = Math.max(0, options.offset ?? 0)
+    const filtered = all.filter((item) =>
+      options.movieId
+        ? item.movieId === options.movieId
+        : options.seriesId
+          ? item.seriesId === options.seriesId
+          : true
+    )
+    return {
+      items: filtered.slice(offset, offset + limit),
+      total: filtered.length,
+      usedBytes: all.reduce((sum, item) => sum + item.sizeBytes, 0),
+      objects: all.length,
+    }
+  }
+
   async getMovieCounts(): Promise<Map<string, number>> {
     if (!this.enabled) return new Map()
     if (this.countsCache && Date.now() - this.countsCache.at < 10_000) {

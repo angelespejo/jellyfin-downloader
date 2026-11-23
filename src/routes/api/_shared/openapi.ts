@@ -213,7 +213,7 @@ export const openapiDocument = {
     '/local-downloads': {
       get: {
         tags: ['Local store'],
-        summary: 'List stored local downloads, optionally filtered by item or series',
+        summary: 'List stored local downloads page by page, optionally filtered by item or series',
         parameters: [
           {
             name: 'movieId',
@@ -225,8 +225,14 @@ export const openapiDocument = {
             in: 'query',
             schema: { type: 'string', pattern: '^[0-9a-fA-F]{32}$' },
           },
+          {
+            name: 'limit',
+            in: 'query',
+            schema: { type: 'integer', default: 20, maximum: 100 },
+          },
+          { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
         ],
-        responses: { '200': { description: 'Stored downloads' } },
+        responses: { '200': { description: 'Page of stored downloads with the filtered total' } },
       },
     },
     '/local-downloads/count': {

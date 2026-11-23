@@ -9,6 +9,7 @@
     DownloadOptionsInput,
     LocalDownloadInfo,
     LocalDownloadsCheckResult,
+    LocalDownloadsPage,
     MediaSourceInfo,
     MovieDetail,
     MovieSummary,
@@ -38,6 +39,8 @@
   import { getI18n } from '#core/i18n.svelte.js'
   import { getNotifications } from '#core/notifications.svelte.js'
   import { getDownloadQueue } from '#core/download-queue.svelte.js'
+  import { infiniteScroll } from '#lib/actions/infinite-scroll.js'
+  import { PAGE_SIZE } from '#const'
 
   let {
     movie,
@@ -98,6 +101,7 @@
   let downloads = $state<LocalDownloadInfo[]>([])
   let downloadsEnabled = $state(true)
   let downloadsLoading = $state(false)
+  let downloadsLoadingMore = $state(false)
   let downloadsError = $state<string | null>(null)
   let downloadsTotal = $state(0)
   let downloadsLoaded = $state(false)
@@ -179,6 +183,7 @@
     }
     return queue.jobs.filter((job) => job.movieId === movie.id)
   })
+  const downloadsHasMore = $derived(downloads.length < downloadsTotal)
   const dialogTitle = $derived.by(() => {
     const base = selectedEpisode ? `${movie.title} · ${episodeCode(selectedEpisode)}` : movie.title
     const year = detail?.year ?? activeItem.year ?? movie.year
@@ -480,18 +485,24 @@
     }
   }
 
-  async function loadDownloads(): Promise<void> {
+  async function loadDownloads(append = false): Promise<void> {
+    if (append && (downloadsLoadingMore || downloads.length >= downloadsTotal)) return
     const requestId = ++downloadsRequest
     const seriesMode = seriesListMode
     const scope = seriesMode ? `series:${movie.id}` : `item:${activeItem.id}`
     if (scope !== downloadsScope) {
       downloadsScope = scope
       downloadsLoaded = false
+      downloads = []
+      downloadsTotal = 0
     }
-    const query = seriesMode
+    const offset = append ? downloads.length : 0
+    const filter = seriesMode
       ? `seriesId=${encodeURIComponent(movie.id)}`
       : `movieId=${encodeURIComponent(activeItem.id)}`
-    downloadsLoading = true
+    const query = `${filter}&limit=${PAGE_SIZE}&offset=${offset}`
+    if (append) downloadsLoadingMore = true
+    else downloadsLoading = true
     downloadsError = null
     try {
       const response = await fetch(`/api/v1/local-downloads?${query}`)
@@ -501,19 +512,23 @@
         downloadsError = errorMessage(payload, i18n.t('detail.downloads.error'))
         return
       }
-      const body = payload as {
-        enabled: boolean
-        items: LocalDownloadInfo[]
-        total: number
-      }
+      const body = payload as LocalDownloadsPage
       downloadsEnabled = body.enabled
-      downloads = body.items
-      downloadsTotal = body.total ?? body.items.length
+      if (append) {
+        const seen = new Set(downloads.map((item) => item.key))
+        downloads = [...downloads, ...(body.items ?? []).filter((item) => !seen.has(item.key))]
+      } else {
+        downloads = body.items ?? []
+      }
+      downloadsTotal = body.total ?? downloads.length
       downloadsLoaded = true
     } catch {
       if (requestId === downloadsRequest) downloadsError = i18n.t('detail.downloads.error')
     } finally {
-      if (requestId === downloadsRequest) downloadsLoading = false
+      if (requestId === downloadsRequest) {
+        downloadsLoading = false
+        downloadsLoadingMore = false
+      }
     }
   }
 
@@ -629,6 +644,7 @@
         return
       }
       downloads = downloads.filter((candidate) => candidate.key !== item.key)
+      downloadsTotal = Math.max(0, downloadsTotal - 1)
       if (item.movieId) {
         ondeleted?.(item.movieId)
         adjustEpisodeCount(item.movieId, -1)
@@ -637,7 +653,6 @@
       const notice = i18n.t('detail.downloads.deleted')
       notifications.notify({ level: 'success', message: notice })
       pendingDelete = null
-      await loadDownloads()
     } catch {
       downloadsError = i18n.t('detail.downloads.error')
       notifications.notify({ level: 'error', message: downloadsError })
@@ -2129,6 +2144,24 @@
                 </article>
               {/each}
             </div>
+            {#if downloadsHasMore}
+              <div
+                class="load-more"
+                use:infiniteScroll={{
+                  enabled: downloadsHasMore && !downloadsLoadingMore,
+                  load: () => void loadDownloads(true),
+                }}
+              >
+                <button
+                  type="button"
+                  class="ghost hover-shine"
+                  disabled={downloadsLoadingMore}
+                  onclick={() => void loadDownloads(true)}
+                >
+                  {downloadsLoadingMore ? i18n.t('common.loadingMore') : i18n.t('common.loadMore')}
+                </button>
+              </div>
+            {/if}
           {/if}
         </div>
       </div>
@@ -2201,6 +2234,12 @@
 />
 
 <style>
+  .load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.7rem;
+  }
+
   .title-actions {
     display: flex;
     flex-wrap: wrap;

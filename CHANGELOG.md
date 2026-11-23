@@ -21,6 +21,8 @@ All notable changes are documented here. The format follows
   directory, source downloads continue with HTTP `Range`, completed ffmpeg steps
   are reused, and failed or cancelled jobs can be restarted with the same
   configuration.
+- Lists render 20 records at a time and load the next page on scroll: the stored
+  downloads page, the dialog downloads tab, catalog results and server logs.
 - Play in Jellyfin link in the media dialog, redirected server-side to avoid
   exposing the internal Jellyfin URL.
 - Episode deep links: the dialog URL switches to the episode id, keeping a back

@@ -12,13 +12,12 @@
   import { getNotifications } from '#core/notifications.svelte.js'
   import { getDownloadQueue } from '#core/download-queue.svelte.js'
   import { infiniteScroll } from '#lib/actions/infinite-scroll.js'
+  import { PAGE_SIZE } from '#const'
 
   let { data }: { data: PageData } = $props()
   const i18n = getI18n()
   const notifications = getNotifications()
   const queue = getDownloadQueue()
-
-  const PAGE_SIZE = 48
 
   let query = $state(page.url.searchParams.get('q') ?? '')
   let selectedItem = $state<MovieSummary | null>(null)

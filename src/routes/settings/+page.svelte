@@ -83,7 +83,7 @@
   let logsClearing = $state(false)
   let pendingClearLogs = $state(false)
 
-  const LOGS_PAGE_SIZE = 100
+  const LOGS_PAGE_SIZE = 20
 
   const tabs = $derived<TabItem[]>([
     { id: 'appearance', label: i18n.t('settings.tab.appearance'), icon: 'sun' },

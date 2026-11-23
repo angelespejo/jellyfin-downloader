@@ -254,6 +254,16 @@ export interface LocalDownloadInfo {
   config: DownloadConfig | null
 }
 
+export interface LocalDownloadsPage {
+  enabled: boolean
+  items: LocalDownloadInfo[]
+  total: number
+  limit: number
+  offset: number
+  usedBytes: number
+  objects: number
+}
+
 export interface DownloadConfig {
   presetId: string | null
   presetName: string | null
