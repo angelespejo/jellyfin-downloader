@@ -301,8 +301,8 @@
     await openResolved(id, from)
   }
 
-  afterNavigate(() => {
-    const url = locationUrl()
+  afterNavigate((navigation) => {
+    const url = navigation.to?.url ?? locationUrl()
     modalParam = url.searchParams.get('modal')
     fromParam = url.searchParams.get('from')
   })
@@ -318,17 +318,19 @@
       modalLoading = null
       episodeId = null
       initialConfigForId = null
-      if (dialogOpen) hideItem()
+      if (untrack(() => dialogOpen)) hideItem()
       return
     }
 
-    if (!from && selectedItem) {
-      if (modalId === selectedItem.id) {
+    const item = untrack(() => selectedItem)
+    const episode = untrack(() => episodeId)
+    if (!from && item) {
+      if (modalId === item.id) {
         appliedKey = key
-        if (selectedItem.kind === 'series' && episodeId !== null) episodeId = null
+        if (item.kind === 'series' && episode !== null) episodeId = null
         return
       }
-      if (selectedItem.kind === 'series' && modalId === episodeId) {
+      if (item.kind === 'series' && modalId === episode) {
         appliedKey = key
         return
       }
