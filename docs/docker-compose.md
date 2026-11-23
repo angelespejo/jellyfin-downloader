@@ -103,7 +103,7 @@ a larger disk. Docker chooses `linux/amd64` or `linux/arm64` automatically.
 ```yaml
 services:
   jellyfin-downloader:
-    image: ghcr.io/angelespejo/jellyfin-downloader:0.1.0
+    image: ghcr.io/angelespejo/jellyfin-downloader:0.2.0
     container_name: jellyfin-downloader
     restart: unless-stopped
     init: true

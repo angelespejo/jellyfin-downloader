@@ -156,7 +156,7 @@ Useful options in `.env`:
 
 | Variable                   | Default  | Purpose                           |
 | -------------------------- | -------- | --------------------------------- |
-| `JELLYFIN_DOWNLOADER_TAG`  | `latest` | Pin `0.1`, `0.1.0` or `latest`    |
+| `JELLYFIN_DOWNLOADER_TAG`  | `latest` | Pin `0.2`, `0.2.0` or `latest`    |
 | `JELLYFIN_DOWNLOADER_PORT` | `3000`   | Host port                         |
 | `SERVER_DATA_DIR`          | `./data` | Host directory mounted at `/data` |
 

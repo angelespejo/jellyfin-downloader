@@ -6,6 +6,8 @@ All notable changes are documented here. The format follows
 
 ## Unreleased
 
+## v0.2.0 - 2026-11-23
+
 ### Added
 
 - Startup ASCII banner printed before Vite or the production server starts, with
@@ -101,5 +103,6 @@ All notable changes are documented here. The format follows
 - English, Spanish and Catalan UI with system, light and dark themes.
 - Docker image, CI, Dependabot and release automation.
 
-[Unreleased]: https://github.com/angelespejo/jellyfin-downloader/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/angelespejo/jellyfin-downloader/compare/v0.2.0...HEAD
+[v0.2.0]: https://github.com/angelespejo/jellyfin-downloader/releases/tag/v0.2.0
 [v0.1.0]: https://github.com/angelespejo/jellyfin-downloader/releases/tag/v0.1.0
