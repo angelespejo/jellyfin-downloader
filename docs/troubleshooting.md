@@ -59,9 +59,13 @@ server uses `revision` to prevent silent overwrites.
 ## The settings file is not created
 
 The server writes `settings.json` at startup. If it is still missing, the data
-directory is not writable by the container user (UID 1000):
+directory is not writable by the container user. Set `PUID` and `PGID` to the
+owner of the mounted directory, or change its ownership:
 
 ```bash
+id -u
+id -g
+# Put those values in .env as PUID and PGID, or:
 sudo chown -R 1000:1000 ./data
 ```
 

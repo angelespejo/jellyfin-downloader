@@ -25,8 +25,9 @@ The root `docker-compose.yml` pulls the published image and stores state in
 - `/data/logs` — persisted JSONL logs;
 - `/data/downloads` — reusable local output store.
 
-The container runs as `node` (UID 1000). Bind-mounted directories must be
-writable by that user.
+The container starts briefly as root to make `/data` writable, then drops to
+`PUID:PGID` (default `1000:1000`, the `node` user). If the bind mount belongs to
+another user, set `PUID` and `PGID` in `.env` to its `id -u` and `id -g`.
 
 Ready-made recipes, from a minimal container to Jellyfin plus GPU passthrough,
 live in [Docker Compose examples](docker-compose.md).

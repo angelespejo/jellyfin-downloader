@@ -31,12 +31,15 @@ ENV NODE_ENV=production \
 COPY --from=build /app/build ./build
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/.dovenv/scripts/startup.ts ./startup.ts
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN mkdir -p /data/downloads /data/jobs /data/logs && chown -R node:node /data
-USER node
+RUN mkdir -p /data/downloads /data/jobs /data/logs \
+  && chown -R node:node /data \
+  && chmod +x /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "startup.ts", "start"]

@@ -103,7 +103,7 @@ a larger disk. Docker chooses `linux/amd64` or `linux/arm64` automatically.
 ```yaml
 services:
   jellyfin-downloader:
-    image: ghcr.io/angelespejo/jellyfin-downloader:0.2.0
+    image: ghcr.io/angelespejo/jellyfin-downloader:0.2.1
     container_name: jellyfin-downloader
     restart: unless-stopped
     init: true
@@ -119,11 +119,14 @@ services:
       - /mnt/media/jellyfin-downloader:/data
 ```
 
-The host directory must be writable by UID 1000 (the container runs as `node`):
+The entrypoint makes the directory writable at startup by changing its ownership
+to `PUID:PGID` (default `1000:1000`). If it belongs to another user, set those
+values in the service environment instead of changing it by hand:
 
-```bash
-sudo mkdir -p /mnt/media/jellyfin-downloader
-sudo chown -R 1000:1000 /mnt/media/jellyfin-downloader
+```yaml
+environment:
+  PUID: '1001'
+  PGID: '1001'
 ```
 
 Update by changing the tag, then `docker compose pull && docker compose up -d`.
@@ -205,7 +208,8 @@ services:
 
 - `SERVER_LOCAL_DOWNLOADS_MAX_GB=0` disables the size limit;
 - `SERVER_LOCAL_DOWNLOADS_TTL_DAYS=0` keeps files forever;
-- the mounted directory must be writable by UID 1000;
+- the mounted directory is adjusted to `PUID:PGID` (default `1000:1000`) at
+  startup;
 - the cache key includes the ffmpeg version and every effective option, so
   hardware and software results do not collide.
 

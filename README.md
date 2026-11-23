@@ -156,7 +156,7 @@ Useful options in `.env`:
 
 | Variable                   | Default  | Purpose                           |
 | -------------------------- | -------- | --------------------------------- |
-| `JELLYFIN_DOWNLOADER_TAG`  | `latest` | Pin `0.2`, `0.2.0` or `latest`    |
+| `JELLYFIN_DOWNLOADER_TAG`  | `latest` | Pin `0.2`, `0.2.1` or `latest`    |
 | `JELLYFIN_DOWNLOADER_PORT` | `3000`   | Host port                         |
 | `SERVER_DATA_DIR`          | `./data` | Host directory mounted at `/data` |
 
@@ -202,8 +202,17 @@ Everything persistent lives in `./data`, mounted at `/data`:
 | `downloads/`    | Reusable local output store |
 | `logs/`         | Persisted JSONL logs        |
 
-The container runs as `node` (UID 1000). On Linux, a custom directory must be
-writable by that user: `sudo chown -R 1000:1000 ./data`.
+The container starts briefly as root to make `/data` writable, then runs as
+`PUID:PGID` (default `1000:1000`, the `node` user). If the bind-mounted
+directory belongs to another user, set both in `.env`:
+
+```bash
+PUID=1001
+PGID=1001
+```
+
+Use `id -u` and `id -g` on the host to find the values. You can still run
+`sudo chown -R 1000:1000 ./data` if you prefer the default user.
 
 Update to the newest release with:
 
@@ -239,13 +248,13 @@ when running natively on macOS; it does not exist in the Linux container.
 
 ### Docker troubleshooting
 
-| Symptom                           | Fix                                                                 |
-| --------------------------------- | ------------------------------------------------------------------- |
-| Cannot reach Jellyfin             | Check `JELLYFIN_URL`: use the host gateway, LAN IP or service name  |
-| `permission denied` under `/data` | `sudo chown -R 1000:1000 ./data` (Linux)                            |
-| `port is already allocated`       | Set `JELLYFIN_DOWNLOADER_PORT` to a free port                       |
-| Container reports `unhealthy`     | `docker compose logs jellyfin-downloader`; verify port and `ORIGIN` |
-| Job fails immediately             | Check `http://localhost:3000/api/v1/health` and the job logs        |
+| Symptom                           | Fix                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------- |
+| Cannot reach Jellyfin             | Check `JELLYFIN_URL`: use the host gateway, LAN IP or service name              |
+| `permission denied` under `/data` | Set `PUID`/`PGID` to the owner of `./data`, or `sudo chown -R 1000:1000 ./data` |
+| `port is already allocated`       | Set `JELLYFIN_DOWNLOADER_PORT` to a free port                                   |
+| Container reports `unhealthy`     | `docker compose logs jellyfin-downloader`; verify port and `ORIGIN`             |
+| Job fails immediately             | Check `http://localhost:3000/api/v1/health` and the job logs                    |
 
 See [docs/docker.md](docs/docker.md) for the image details and
 [docs/configuration.md](docs/configuration.md) for every variable.
