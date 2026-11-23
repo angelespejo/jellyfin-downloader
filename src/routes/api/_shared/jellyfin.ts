@@ -21,6 +21,10 @@ interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined>
   signal?: AbortSignal
   accept?: string
+  /** Extra request headers, such as a byte range. */
+  headers?: Record<string, string>
+  /** HTTP statuses returned as a normal response instead of an error. */
+  allowStatus?: readonly number[]
   /** null desactiva el timeout (descargas de medios) */
   timeoutMs?: number | null
 }
@@ -69,10 +73,11 @@ class JellyfinClient {
     return url
   }
 
-  private authHeaders(accept: string): Headers {
+  private authHeaders(accept: string, extra?: Record<string, string>): Headers {
     const headers = new Headers()
     headers.set('Authorization', `MediaBrowser Token="${this.apiKey}"`)
     headers.set('Accept', accept)
+    for (const [name, value] of Object.entries(extra ?? {})) headers.set(name, value)
     return headers
   }
 
@@ -80,7 +85,8 @@ class JellyfinClient {
     url: URL,
     accept: string,
     signal: AbortSignal | undefined,
-    timeoutMs: number | null
+    timeoutMs: number | null,
+    extraHeaders?: Record<string, string>
   ): Promise<Response> {
     let current = url
     for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -93,7 +99,7 @@ class JellyfinClient {
       try {
         response = await fetch(current, {
           method: 'GET',
-          headers: this.authHeaders(accept),
+          headers: this.authHeaders(accept, extraHeaders),
           redirect: 'manual',
           signal: combined,
         })
@@ -125,9 +131,11 @@ class JellyfinClient {
       url,
       options.accept ?? 'application/json',
       options.signal,
-      timeoutMs
+      timeoutMs,
+      options.headers
     )
     if (!response.ok) {
+      if (options.allowStatus?.includes(response.status)) return response
       if (response.status === 404) {
         throw new JellyfinError('The movie does not exist in Jellyfin', 404)
       }
@@ -378,7 +386,12 @@ class JellyfinClient {
     return response
   }
 
-  async getStream(itemId: string, mediaSourceId: string, signal?: AbortSignal): Promise<Response> {
+  async getStream(
+    itemId: string,
+    mediaSourceId: string,
+    signal?: AbortSignal,
+    rangeStart?: number
+  ): Promise<Response> {
     if (!isValidJellyfinId(itemId)) throw new JellyfinError('Invalid movie ID', 400)
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(mediaSourceId)) {
       throw new JellyfinError('Invalid source ID', 400)
@@ -388,6 +401,8 @@ class JellyfinClient {
       accept: '*/*',
       signal,
       timeoutMs: null,
+      allowStatus: [416],
+      ...(rangeStart && rangeStart > 0 ? { headers: { Range: `bytes=${rangeStart}-` } } : {}),
     })
   }
 

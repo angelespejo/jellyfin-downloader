@@ -17,6 +17,10 @@ All notable changes are documented here. The format follows
 - Active download queue: card badges, a queue tab in the media dialog filtered to
   the open title or series, a **Downloading now** section on the downloads page,
   clickable queue titles, configuration badges and cancel actions.
+- Pause, continue and restart for download jobs: paused jobs keep their work
+  directory, source downloads continue with HTTP `Range`, completed ffmpeg steps
+  are reused, and failed or cancelled jobs can be restarted with the same
+  configuration.
 - Play in Jellyfin link in the media dialog, redirected server-side to avoid
   exposing the internal Jellyfin URL.
 - Episode deep links: the dialog URL switches to the episode id, keeping a back
@@ -53,12 +57,23 @@ All notable changes are documented here. The format follows
   are paginated on the server as the user scrolls.
 - The Downloads tab counter now follows the stored results total instead of the
   initial summary snapshot, including deep links and background completions.
+- Restart recovery now reuses completed ffmpeg steps instead of repeating every
+  step after the source download.
 - Deleting a stored download confirms with a floating toast instead of an inline
   notice.
 - The bundled `docker-compose.yml` pulls the published
   `ghcr.io/angelespejo/jellyfin-downloader` image instead of building locally.
 - The README documents the Docker installation step by step and links to the
   Compose examples.
+- Stored download cards show size, original size, processing time and date as
+  icon-labelled facts, with a full-width download action and the delete action
+  moved next to it; queue rows use the same chip styling.
+- Running downloads show a live elapsed timer in the queue and the dialog, ticking
+  every second between API polls.
+- The file type moved from the download card header to an icon-labelled fact, so
+  the filename gets the full card width.
+- The configuration badge is labelled **Output configuration** with a visible
+  panel heading, and its popover is lifted above the page footer while open.
 
 ### Fixed
 

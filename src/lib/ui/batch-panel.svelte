@@ -6,9 +6,15 @@
   let {
     items,
     oncancel,
+    onpause,
+    onresume,
+    onrestart,
   }: {
     items: { movieId: string; title: string; job: DownloadJobStatus }[]
     oncancel?: (item: { movieId: string; title: string; job: DownloadJobStatus }) => void
+    onpause?: (item: { movieId: string; title: string; job: DownloadJobStatus }) => void
+    onresume?: (item: { movieId: string; title: string; job: DownloadJobStatus }) => void
+    onrestart?: (item: { movieId: string; title: string; job: DownloadJobStatus }) => void
   } = $props()
 
   const i18n = getI18n()
@@ -16,6 +22,7 @@
   function stateLabel(job: DownloadJobStatus): string {
     if (job.state === 'queued') return i18n.t('batch.queued')
     if (job.state === 'running') return i18n.t('batch.processing')
+    if (job.state === 'paused') return i18n.t('job.paused')
     if (job.state === 'ready') return i18n.t('batch.ready')
     if (job.state === 'failed') return i18n.t('batch.failed')
     return i18n.t('job.cancelled')
@@ -47,11 +54,11 @@
           <span class={['badge', stateTone(item.job)]}>{stateLabel(item.job)}</span>
         </div>
 
-        {#if item.job.state === 'running'}
+        {#if item.job.state === 'running' || item.job.state === 'paused'}
           <div
             class="progress"
             role="progressbar"
-            aria-label={`${i18n.t('batch.processing')} · ${item.title}`}
+            aria-label={`${i18n.t(item.job.state === 'paused' ? 'job.paused' : 'batch.processing')} · ${item.title}`}
             aria-valuemin="0"
             aria-valuemax="100"
             aria-valuenow={progress ?? undefined}
@@ -72,7 +79,40 @@
           </a>
         {/if}
 
-        {#if oncancel && (item.job.state === 'queued' || item.job.state === 'running')}
+        {#if onpause && (item.job.state === 'queued' || item.job.state === 'running')}
+          <button
+            type="button"
+            class="ghost batch-action hover-shine"
+            onclick={() => onpause?.(item)}
+          >
+            <Icon name="pause" size={13} />
+            {i18n.t('queue.pause')}
+          </button>
+        {/if}
+
+        {#if onresume && item.job.state === 'paused'}
+          <button
+            type="button"
+            class="ghost batch-action hover-shine"
+            onclick={() => onresume?.(item)}
+          >
+            <Icon name="play" size={13} />
+            {i18n.t('queue.resume')}
+          </button>
+        {/if}
+
+        {#if onrestart && (item.job.state === 'paused' || item.job.state === 'failed' || item.job.state === 'cancelled')}
+          <button
+            type="button"
+            class="ghost batch-action hover-shine"
+            onclick={() => onrestart?.(item)}
+          >
+            <Icon name="restart" size={13} />
+            {i18n.t('queue.restart')}
+          </button>
+        {/if}
+
+        {#if oncancel && (item.job.state === 'queued' || item.job.state === 'running' || item.job.state === 'paused')}
           <button
             type="button"
             class="danger batch-cancel hover-shine"
@@ -130,6 +170,17 @@
   }
 
   .batch-cancel {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .batch-action {
     align-self: flex-start;
     display: inline-flex;
     align-items: center;

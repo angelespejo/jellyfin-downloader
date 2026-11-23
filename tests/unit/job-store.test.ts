@@ -104,6 +104,27 @@ test('JobStore ignores corrupt files and cleans terminal jobs', async () => {
   }
 })
 
+test('JobStore persists paused jobs and keeps them until the paused cutoff', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'jf-job-store-'))
+  try {
+    const store = new JobStore(directory)
+    const paused = record({ state: 'paused', stage: 'processing-video', progress: 0.5 })
+    await store.save(paused)
+    const loaded = await store.loadAll()
+    assert.equal(loaded.length, 1)
+    assert.equal(loaded[0]?.state, 'paused')
+    assert.equal(loaded[0]?.progress, 0.5)
+
+    const now = Date.now()
+    await store.cleanup(now - 1000, now - 5000)
+    assert.equal((await store.loadAll()).length, 1, 'paused jobs survive the short TTL')
+    await store.cleanup(now - 1000, now + 1000)
+    assert.equal((await store.loadAll()).length, 0, 'paused jobs expire after their cutoff')
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test('JobStore keep files under the configured directory', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'jf-job-store-'))
   try {

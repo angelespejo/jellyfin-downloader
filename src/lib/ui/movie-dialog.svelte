@@ -107,12 +107,19 @@
   let deleting = $state(false)
   let pendingDelete = $state<LocalDownloadInfo | null>(null)
   let pendingJobCancel = $state<DownloadJobStatus | null>(null)
+  let pendingJobRestart = $state<DownloadJobStatus | null>(null)
   let pendingBatchCancel = $state<{
     movieId: string
     title: string
     job: DownloadJobStatus
   } | null>(null)
+  let pendingBatchRestart = $state<{
+    movieId: string
+    title: string
+    job: DownloadJobStatus
+  } | null>(null)
   let cancellingJob = $state(false)
+  let actingJob = $state(false)
   let sectionOpen = $state({ output: true, audio: true, subtitles: true })
   let openSeasons = $state<Record<number, boolean>>({})
   let seriesSizeBytes = $state<number | null>(null)
@@ -1004,6 +1011,91 @@
     })
   }
 
+  type JobAction = 'pause' | 'resume' | 'restart'
+
+  function actionErrorKey(
+    action: JobAction
+  ): 'queue.pauseError' | 'queue.resumeError' | 'queue.restartError' {
+    return action === 'pause'
+      ? 'queue.pauseError'
+      : action === 'resume'
+        ? 'queue.resumeError'
+        : 'queue.restartError'
+  }
+
+  function actionDoneKey(action: JobAction): 'queue.paused' | 'queue.resumed' | 'queue.restarted' {
+    return action === 'pause'
+      ? 'queue.paused'
+      : action === 'resume'
+        ? 'queue.resumed'
+        : 'queue.restarted'
+  }
+
+  async function runJobAction(
+    status: DownloadJobStatus,
+    action: JobAction
+  ): Promise<DownloadJobStatus | null> {
+    actingJob = true
+    const result = await queue.act(status.id, action)
+    actingJob = false
+    if (!result.ok) {
+      notifications.notify({
+        level: 'error',
+        message: i18n.error(result.code, i18n.t(actionErrorKey(action))),
+      })
+      return null
+    }
+    notifications.notify({
+      level: 'success',
+      message: i18n.t(actionDoneKey(action), { name: status.title }),
+    })
+    return result.job
+  }
+
+  async function handleJobAction(action: JobAction): Promise<void> {
+    const current = job
+    if (!current) return
+    const updated = await runJobAction(current, action)
+    if (!updated) return
+    job = updated
+    void queue.refresh()
+    if (action === 'pause') {
+      stopPolling()
+      return
+    }
+    if (action === 'resume' || action === 'restart') {
+      stopPolling()
+      void pollJob(updated.id)
+    }
+  }
+
+  async function confirmJobRestart(): Promise<void> {
+    pendingJobRestart = null
+    await handleJobAction('restart')
+  }
+
+  async function handleBatchAction(
+    item: { movieId: string; title: string; job: DownloadJobStatus },
+    action: JobAction
+  ): Promise<void> {
+    const updated = await runJobAction(item.job, action)
+    if (!updated) return
+    batchJobs = batchJobs.map((candidate) =>
+      candidate.job.id === updated.id ? { ...candidate, job: updated } : candidate
+    )
+    void queue.refresh()
+    if (action === 'resume' || action === 'restart') {
+      startBatchPolling()
+    }
+  }
+
+  async function confirmBatchRestart(): Promise<void> {
+    const target = pendingBatchRestart
+    pendingBatchRestart = null
+    if (!target) return
+    await handleBatchAction(target, 'restart')
+  }
+
   function stopBatchPolling(): void {
     batchPollGeneration += 1
     if (batchPollTimer) {
@@ -1148,8 +1240,13 @@
       void loadDownloads()
       return
     }
+    const active = pending.filter((item) => item.job.state !== 'paused')
+    if (active.length === 0) {
+      stopBatchPolling()
+      return
+    }
     const updates = await Promise.all(
-      pending.map(async (item) => {
+      active.map(async (item) => {
         try {
           const response = await fetch(`/api/v1/downloads/${item.job.id}`)
           if (!response.ok) return null
@@ -1451,7 +1548,13 @@
                     <div class="error-box" role="alert">{batchError}</div>
                   {/if}
 
-                  <BatchPanel items={batchJobs} oncancel={(item) => (pendingBatchCancel = item)} />
+                  <BatchPanel
+                    items={batchJobs}
+                    oncancel={(item) => (pendingBatchCancel = item)}
+                    onpause={(item) => void handleBatchAction(item, 'pause')}
+                    onresume={(item) => void handleBatchAction(item, 'resume')}
+                    onrestart={(item) => (pendingBatchRestart = item)}
+                  />
                 </div>
               </div>
             {:else}
@@ -1934,7 +2037,11 @@
                 {job}
                 error={jobError}
                 cancelling={cancellingJob}
+                acting={actingJob}
                 oncancel={() => (pendingJobCancel = job)}
+                onpause={() => void handleJobAction('pause')}
+                onresume={() => void handleJobAction('resume')}
+                onrestart={() => (pendingJobRestart = job)}
               />
             </div>
           {/if}
@@ -2071,6 +2178,26 @@
   busy={cancellingJob}
   onconfirm={() => void confirmBatchCancel()}
   oncancel={() => (pendingBatchCancel = null)}
+/>
+
+<ConfirmDialog
+  open={pendingJobRestart !== null}
+  title={i18n.t('queue.restartTitle')}
+  message={i18n.t('queue.restartMessage', { name: pendingJobRestart?.title ?? '' })}
+  confirmLabel={i18n.t('queue.restart')}
+  busy={actingJob}
+  onconfirm={() => void confirmJobRestart()}
+  oncancel={() => (pendingJobRestart = null)}
+/>
+
+<ConfirmDialog
+  open={pendingBatchRestart !== null}
+  title={i18n.t('queue.restartTitle')}
+  message={i18n.t('queue.restartMessage', { name: pendingBatchRestart?.title ?? '' })}
+  confirmLabel={i18n.t('queue.restart')}
+  busy={actingJob}
+  onconfirm={() => void confirmBatchRestart()}
+  oncancel={() => (pendingBatchRestart = null)}
 />
 
 <style>

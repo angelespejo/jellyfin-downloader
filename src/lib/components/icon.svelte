@@ -37,6 +37,12 @@
     api: ['M8 9l-3 3 3 3', 'M16 9l3 3-3 3', 'M14 5l-4 14'],
     play: ['M8 5v14l11-7z'],
     clock: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 7v5l3 2'],
+    'hard-drive': ['M4 6h16v12H4z', 'M4 14h16', 'M7.5 17h.01', 'M11 17h5'],
+    calendar: ['M4 6h16v14H4z', 'M4 10h16', 'M8 3v4', 'M16 3v4'],
+    archive: ['M4 7h16v3H4z', 'M5 10v10h14V10', 'M10 14h4'],
+    file: ['M6 3h8l4 4v14H6z', 'M14 3v4h4'],
+    pause: ['M9 5v14', 'M15 5v14'],
+    restart: ['M20 11a8 8 0 1 0-2.3 6.3', 'M20 4v7h-7'],
   }
 </script>
 

@@ -25,7 +25,10 @@
   let focusWithin = $state(false)
 
   const open = $derived(pinned || hovering || focusWithin)
-  const label = $derived(config?.presetName ?? i18n.t('config.badgeCustom'))
+  const presetLabel = $derived(config ? (config.presetName ?? i18n.t('config.badgeCustom')) : null)
+  const label = $derived(
+    presetLabel ? `${i18n.t('config.badgeLabel')}` : i18n.t('config.badgeLabel')
+  )
   const replicateHref = $derived(
     movieId && downloadKey
       ? `/?modal=${encodeURIComponent(movieId)}&from=${encodeURIComponent(downloadKey)}`
@@ -150,6 +153,7 @@
     onkeydown={onKeydown}
   >
     {#if config}
+      <p class="config-heading">{i18n.t('config.badgeLabel')}</p>
       <dl class="config-rows">
         <div class="config-row">
           <dt>{i18n.t('config.preset')}</dt>
@@ -267,6 +271,12 @@
 
   .config-panel[hidden] {
     display: none;
+  }
+
+  .config-heading {
+    margin: 0 0 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 700;
   }
 
   .config-rows {

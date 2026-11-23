@@ -180,7 +180,7 @@ export class LocalDownloadsStore {
     await rm(directory, { recursive: true, force: true }).catch(() => undefined)
   }
 
-  async cleanupStaleWork(): Promise<void> {
+  async cleanupStaleWork(protectedDirs: ReadonlySet<string> = new Set()): Promise<void> {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000
     if (!this.enabled) {
       let entries: string[]
@@ -192,6 +192,7 @@ export class LocalDownloadsStore {
       for (const entry of entries) {
         if (!entry.startsWith('jellyfin-downloader-')) continue
         const directory = path.join(os.tmpdir(), entry)
+        if (protectedDirs.has(directory)) continue
         try {
           const info = await stat(directory)
           if (info.mtimeMs < cutoff) await rm(directory, { recursive: true, force: true })
@@ -211,6 +212,7 @@ export class LocalDownloadsStore {
     for (const entry of entries) {
       if (!/^[0-9a-f-]{36}$/i.test(entry)) continue
       const directory = path.join(workRoot, entry)
+      if (protectedDirs.has(directory)) continue
       try {
         const info = await stat(directory)
         if (info.mtimeMs < cutoff) await rm(directory, { recursive: true, force: true })
@@ -448,7 +450,7 @@ export class LocalDownloadsStore {
         throw new Error('Not enough disk space to download this movie')
       }
     } catch (error) {
-      if (error instanceof Error && error.message.includes('not enough disk space')) throw error
+      if (error instanceof Error && /not enough disk space/i.test(error.message)) throw error
       // If statfs is unavailable, do not block the download.
     }
   }

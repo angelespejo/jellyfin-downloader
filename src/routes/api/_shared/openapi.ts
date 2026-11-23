@@ -147,13 +147,52 @@ export const openapiDocument = {
       },
       delete: {
         tags: ['Downloads'],
-        summary: 'Cancel an active job',
+        summary: 'Cancel a queued, running or paused job',
         parameters: [
           { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
         ],
         responses: {
           '200': { description: 'Updated state' },
           '409': { description: 'Already finished' },
+        },
+      },
+    },
+    '/downloads/{id}/pause': {
+      post: {
+        tags: ['Downloads'],
+        summary: 'Pause a queued or running job, keeping its work directory',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: {
+          '200': { description: 'Paused job' },
+          '409': { description: 'Already finished' },
+        },
+      },
+    },
+    '/downloads/{id}/resume': {
+      post: {
+        tags: ['Downloads'],
+        summary: 'Resume a paused job, reusing the source and completed steps',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: {
+          '200': { description: 'Queued job' },
+          '409': { description: 'The job is not paused' },
+        },
+      },
+    },
+    '/downloads/{id}/restart': {
+      post: {
+        tags: ['Downloads'],
+        summary: 'Restart a paused, failed or cancelled job from scratch',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ],
+        responses: {
+          '200': { description: 'Queued job' },
+          '409': { description: 'The job is still active' },
         },
       },
     },

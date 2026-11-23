@@ -140,70 +140,70 @@
       {@const modalId = item.movieId}
       {@const modalHref = modalId ? `/?modal=${encodeURIComponent(modalId)}` : null}
       <article class="download-card">
-        <div class="download-card-head">
-          <div>
-            <h3>
-              {#if modalHref}
-                <a
-                  class="download-title"
-                  href={modalHref}
-                  title={i18n.t('downloads.openInLibrary')}
-                >
-                  {item.filename}
-                </a>
-              {:else}
-                {item.filename}
-              {/if}
-            </h3>
-            <p class="muted small">
-              {item.movieTitle ?? i18n.t('downloads.unknownMovie')}
-              {#if item.movieYear}
-                · {item.movieYear}{/if}
-            </p>
+        <div class="download-titles">
+          <h3>
             {#if modalHref}
-              <a
-                class="library-link"
-                href={modalHref}
-                aria-label={`${i18n.t('downloads.openInLibrary')} · ${
-                  item.movieTitle ?? item.filename
-                }`}
-              >
-                <Icon name="film" size={13} />
-                {i18n.t('downloads.openInLibrary')}
+              <a class="download-title" href={modalHref} title={i18n.t('downloads.openInLibrary')}>
+                {item.filename}
               </a>
+            {:else}
+              {item.filename}
             {/if}
+          </h3>
+          <p class="download-subtitle">
+            {item.movieTitle ?? i18n.t('downloads.unknownMovie')}
+            {#if item.movieYear}
+              <span class="download-year">· {item.movieYear}</span>
+            {/if}
+          </p>
+        </div>
+
+        <dl class="download-facts">
+          <div class="download-fact">
+            <dt>
+              <Icon name={item.kind === 'zip' ? 'archive' : 'file'} size={13} />
+              {i18n.t('downloads.typeLabel')}
+            </dt>
+            <dd>{item.kind === 'zip' ? i18n.t('downloads.zip') : i18n.t('downloads.file')}</dd>
           </div>
-          <span class="badge info">
-            <Icon name="download" size={13} />
-            {item.kind === 'zip' ? i18n.t('downloads.zip') : i18n.t('downloads.file')}
-          </span>
-        </div>
-        <div class="download-meta">
-          <span>
-            {i18n.t('downloads.size', { size: formatBytes(item.sizeBytes, i18n.locale) })}
-          </span>
-          {#if item.sourceSizeBytes}
-            <span title={i18n.t('common.originalSizeHint')}>
-              {i18n.t('common.originalSize', {
-                size: formatBytes(item.sourceSizeBytes, i18n.locale),
-              })}
-            </span>
-          {/if}
+          <div class="download-fact">
+            <dt><Icon name="hard-drive" size={13} />{i18n.t('downloads.sizeLabel')}</dt>
+            <dd>{formatBytes(item.sizeBytes, i18n.locale)}</dd>
+          </div>
+          <div class="download-fact" title={i18n.t('common.originalSizeHint')}>
+            <dt><Icon name="film" size={13} />{i18n.t('downloads.originalLabel')}</dt>
+            <dd>{item.sourceSizeBytes ? formatBytes(item.sourceSizeBytes, i18n.locale) : '—'}</dd>
+          </div>
           {#if item.processingMs}
-            <span title={i18n.t('common.processedHint')}>
-              {i18n.t('common.processedIn', {
-                time: formatProcessingTime(item.processingMs),
-              })}
-            </span>
+            <div class="download-fact" title={i18n.t('common.processedHint')}>
+              <dt><Icon name="clock" size={13} />{i18n.t('downloads.processedLabel')}</dt>
+              <dd>{formatProcessingTime(item.processingMs)}</dd>
+            </div>
           {/if}
-          <span>
-            {i18n.t('downloads.date', { date: formatTimestamp(item.createdAt, i18n.locale) })}
-          </span>
-        </div>
+          <div class="download-fact">
+            <dt><Icon name="calendar" size={13} />{i18n.t('downloads.dateLabel')}</dt>
+            <dd>{formatTimestamp(item.createdAt, i18n.locale)}</dd>
+          </div>
+        </dl>
+
+        {#if modalHref}
+          <a
+            class="library-link"
+            href={modalHref}
+            aria-label={`${i18n.t('downloads.openInLibrary')} · ${
+              item.movieTitle ?? item.filename
+            }`}
+          >
+            <Icon name="film" size={13} />
+            {i18n.t('downloads.openInLibrary')}
+          </a>
+        {/if}
+
         <DownloadConfigBadge config={item.config} movieId={item.movieId} downloadKey={item.key} />
-        <div class="download-actions">
-          <a class="badge accent-high hover-shine" href={item.downloadUrl} download>
-            <Icon name="download" size={14} />
+
+        <div class="download-card-actions">
+          <a class="download-primary hover-shine" href={item.downloadUrl} download>
+            <Icon name="download" size={15} />
             {i18n.t('downloads.download')}
           </a>
           <button
@@ -237,6 +237,63 @@
     margin-bottom: 1.25rem;
   }
 
+  .downloads-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  .download-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1.05rem 1.1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    transition:
+      transform 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .download-card:hover,
+  .download-card:focus-within {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    box-shadow:
+      0 16px 32px -20px color-mix(in srgb, var(--accent) 40%, transparent),
+      var(--shadow);
+  }
+
+  /* The hover transform creates a stacking context; lift the card so the open
+     configuration panel stays above the page footer and sibling cards. */
+  .download-card:has(:global(.config-panel):not([hidden])) {
+    position: relative;
+    z-index: 5;
+  }
+
+  .download-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .download-card h3 {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    font-size: 0.98rem;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
   .download-title {
     color: inherit;
   }
@@ -245,12 +302,114 @@
     color: var(--accent);
   }
 
+  .download-subtitle {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+
+  .download-year {
+    white-space: nowrap;
+  }
+
+  .download-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0.55rem 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface-2) 65%, transparent);
+  }
+
+  .download-fact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .download-fact dt {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .download-fact dt :global(.icon) {
+    color: var(--accent);
+  }
+
+  .download-fact dd {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
   .library-link {
     display: inline-flex;
     align-items: center;
+    align-self: flex-start;
     gap: 0.3rem;
-    margin-top: 0.35rem;
-    font-size: 0.78rem;
+    color: var(--muted);
+    font-size: 0.77rem;
     font-weight: 600;
+  }
+
+  .library-link:hover {
+    color: var(--accent);
+  }
+
+  .download-card-actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--line);
+  }
+
+  .download-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.9rem;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 0.83rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: filter 140ms ease;
+  }
+
+  .download-primary:hover {
+    filter: brightness(1.06);
+    text-decoration: none;
+  }
+
+  .download-card-actions .icon-btn {
+    width: 2.4rem;
+    height: 2.4rem;
+    background: var(--danger-soft);
+    border-color: transparent;
+  }
+
+  @media (max-width: 420px) {
+    .download-facts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 </style>

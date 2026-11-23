@@ -33,7 +33,10 @@ OpenAPI 3.1: `GET /api/v1/openapi.json`. Human-readable page: `GET /api/v1/docs`
 | POST   | `/downloads/batch`                          | Create several downloads with one config      |
 | GET    | `/downloads/{id}`                           | State and progress                            |
 | GET    | `/downloads/{id}/file`                      | Final file; supports `Range`                  |
-| DELETE | `/downloads/{id}`                           | Cancel an active job                          |
+| DELETE | `/downloads/{id}`                           | Cancel a queued, running or paused job        |
+| POST   | `/downloads/{id}/pause`                     | Pause a queued or running job                 |
+| POST   | `/downloads/{id}/resume`                    | Resume a paused job                           |
+| POST   | `/downloads/{id}/restart`                   | Restart a paused, failed or cancelled job     |
 | GET    | `/local-downloads?movieId=&seriesId=`       | List stored local downloads                   |
 | GET    | `/local-downloads/count?movieId=&seriesId=` | Stored download count for an item/series      |
 | GET    | `/local-downloads/{key}`                    | Stored download metadata and configuration    |
@@ -152,7 +155,7 @@ or `Title (year) - custom.ext` when no preset was used.
 
 ## States
 
-- `queued`, `running`, `ready`, `failed`, `cancelled`.
+- `queued`, `running`, `paused`, `ready`, `failed`, `cancelled`.
 - Stages: `preparing`, `downloading-source`, `downloading-subtitles`,
   `processing-video`, `extracting-audio`, `extracting-subtitles`, `packaging`,
   `finalizing`.
@@ -170,9 +173,23 @@ or `Title (year) - custom.ext` when no preset was used.
 
 ## Queue
 
-`GET /downloads?state=active&limit=50` returns `{ jobs, total, active }` with the
-jobs that are queued or running, ordered by queue position. `state=all` includes
-finished jobs retained by the server. Use `DELETE /downloads/{id}` to cancel.
+`GET /downloads?state=active&limit=50` returns `{ jobs, total, active }` with
+queued, running and paused jobs, ordered by queue position and then by update
+time. `state=all` includes finished jobs retained by the server. Use
+`DELETE /downloads/{id}` to cancel.
+
+## Pause, resume and restart
+
+- `POST /downloads/{id}/pause` stops a queued or running job, freezes its
+  `processingMs` and keeps its work directory. The next queued job can start.
+- `POST /downloads/{id}/resume` puts the job back at the end of the queue. A
+  partial original file is continued with an HTTP `Range` request when Jellyfin
+  supports it. Completed ffmpeg steps are reused; only the step that was running
+  when the job was paused starts again.
+- `POST /downloads/{id}/restart` discards the work directory and starts the same
+  job from scratch. It is available for paused, failed and cancelled jobs.
+- Paused jobs survive a server restart and are kept for 7 days. Creating the same
+  download again resumes the paused job instead of duplicating it.
 
 ## Logs pagination
 

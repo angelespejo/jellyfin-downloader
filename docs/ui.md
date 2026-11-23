@@ -39,9 +39,10 @@ viewport and paints above the sticky header and footer.
   size, date, download link, configuration badge and a styled delete
   confirmation. A series lists downloads for all of its episodes.
 - **Queue (N)** — active downloads for this movie or episode; on a series list it
-  shows every episode of that series. Each row shows stage, progress or queue
-  position, original size, configuration badge/popover and a cancel action; the
-  title opens that item in the dialog.
+  shows every episode of that series. Each row shows stage, live elapsed time,
+  progress or queue position, original size, configuration badge/popover and
+  cancel actions; the title opens that item in the dialog. Queued and running
+  jobs can be paused and resumed in place, and paused jobs can be restarted.
 
 The tabs remain pinned below the modal title while the body scrolls. Output
 files are named `Title (year) - Preset.ext`, or `Title (year) - custom.ext`
@@ -64,6 +65,16 @@ encoder; it is enabled by default.
 The dialog traps focus, closes on Escape or backdrop click, animates open/close,
 and returns focus to the card.
 
+## Pause and resume
+
+Pausing a queued job removes it from the queue without losing its configuration.
+Pausing a running job aborts the current ffmpeg/source operation, freezes the
+processing time and keeps the work directory. Resuming puts the job back at the
+end of the queue: a partially downloaded original continues with an HTTP `Range`
+request, completed ffmpeg steps are reused, and only the step that was running
+starts again. **Restart** discards the work directory and starts from scratch.
+Paused jobs survive a server restart and are kept for 7 days.
+
 ## Notifications
 
 - Global toasts appear above the interface for downloads, deletions, settings
@@ -77,8 +88,11 @@ and returns focus to the card.
 
 `/downloads` shows a **Downloading now** section above the stored files:
 
-- active jobs with title, filename, stage, progress bar or queue position, plus
-  the original source size; clicking the title opens the media dialog;
+- active jobs with title, filename, stage, a live elapsed timer, progress bar or
+  queue position, plus the original source size; clicking the title opens the
+  media dialog;
+- **Pause/Continue** for queued and running jobs, and **Restart** for paused jobs
+  (with confirmation), keeping the same job and configuration;
 - cancel action with a styled confirmation dialog;
 - when a job finishes it leaves the queue and the stored list refreshes
   automatically.
@@ -87,10 +101,12 @@ and returns focus to the card.
 - filename and optional movie/year;
 - a link back to the media dialog (`/?modal=<item id>`) when the Jellyfin item
   is known;
-- size, original source size, processing time, date, type and a preset/custom
-  configuration badge;
+- icon-labelled facts for type, size, original source size, processing time and
+  date;
+- an output-configuration badge with a visible panel heading;
 - a hover/focus popover with the exact configuration and a **Replicate**
   action that opens the dialog prefilled through `?modal=<id>&from=<key>`;
+- a full-width **Download** action with the delete icon button beside it;
 - stable download URL;
 - delete action with a styled confirmation dialog.
 

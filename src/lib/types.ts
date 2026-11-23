@@ -310,7 +310,7 @@ export interface LocalDownloadsCheckResult {
   kind?: 'file' | 'zip'
 }
 
-export type JobState = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled'
+export type JobState = 'queued' | 'running' | 'paused' | 'ready' | 'failed' | 'cancelled'
 
 export type JobStage =
   | 'queued'
@@ -391,6 +391,12 @@ export type IconName =
   | 'api'
   | 'play'
   | 'clock'
+  | 'hard-drive'
+  | 'calendar'
+  | 'archive'
+  | 'file'
+  | 'pause'
+  | 'restart'
 
 export interface TabItem {
   id: string

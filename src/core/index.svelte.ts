@@ -9,10 +9,12 @@ export {
   type NotificationsContext,
 } from './notifications.svelte.js'
 export {
+  actOnJob,
   cancelJob,
   getDownloadQueue,
   refresh as refreshDownloadQueue,
   startQueue,
   stopQueue,
-  type CancelResult,
+  type JobAction,
+  type JobActionResult,
 } from './download-queue.svelte.js'

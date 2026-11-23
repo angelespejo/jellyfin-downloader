@@ -31,7 +31,7 @@ export interface PersistedJob {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const STATES = new Set<JobState>(['queued', 'running', 'ready', 'failed', 'cancelled'])
+const STATES = new Set<JobState>(['queued', 'running', 'paused', 'ready', 'failed', 'cancelled'])
 const STAGES = new Set<JobStage>([
   'queued',
   'preparing',
@@ -103,11 +103,12 @@ export class JobStore {
     await rm(this.fileFor(id), { force: true }).catch(() => undefined)
   }
 
-  async cleanup(cutoff: number): Promise<void> {
+  async cleanup(cutoff: number, pausedCutoff = cutoff): Promise<void> {
     const jobs = await this.loadAll()
     for (const job of jobs) {
       if (job.state === 'queued' || job.state === 'running') continue
-      if (Date.parse(job.updatedAt) >= cutoff) continue
+      const limit = job.state === 'paused' ? pausedCutoff : cutoff
+      if (Date.parse(job.updatedAt) >= limit) continue
       await this.remove(job.id)
     }
   }

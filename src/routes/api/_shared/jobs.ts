@@ -57,6 +57,10 @@ interface JobRecord extends PersistedJob {
   controller: AbortController
   child: ChildProcessByStdio<null, NodeReadable, NodeReadable> | null
   cancelRequested: boolean
+  pauseRequested: boolean
+  resumeRequested: boolean
+  restartRequested: boolean
+  runActive: boolean
   lastPersist: number
 }
 
@@ -72,6 +76,7 @@ const activeByKey = new Map<string, string>()
 let active = 0
 let manager: JobManager | null = null
 const JOB_TTL_MS = 6 * 60 * 60 * 1000
+const PAUSED_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const PERSIST_INTERVAL_MS = 1500
 
 function safeExtension(value: string | undefined | null): string {
@@ -308,6 +313,63 @@ async function downloadExternalSubtitles(
   return files
 }
 
+function parseContentRange(value: string | null): { start: number; total: number } | null {
+  if (!value) return null
+  const match = /^bytes\s+(\d+)-(\d+)\/(\d+)$/i.exec(value.trim())
+  if (!match) return null
+  const start = Number(match[1])
+  const total = Number(match[3])
+  if (!Number.isFinite(start) || !Number.isFinite(total) || total <= 0) return null
+  return { start, total }
+}
+
+async function receiveSource(
+  job: JobRecord,
+  response: Response,
+  sourcePath: string,
+  start: number,
+  totalHint: number
+): Promise<string> {
+  if (!response.body) throw new JobError('Jellyfin did not return the movie content', 502)
+  const remaining = Number(response.headers.get('content-length') ?? 0)
+  const total = totalHint > 0 ? totalHint : start + remaining
+  if (total > 0) job.sourceContentLength = total
+  const store = getLocalDownloadsStore()
+  await store.ensureDiskSpace(total > start ? total - start : remaining || null)
+
+  let received = start
+  let lastUpdate = 0
+  const counter = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      received += chunk.length
+      const now = Date.now()
+      if (now - lastUpdate > 400) {
+        lastUpdate = now
+        const fraction = total > 0 ? Math.min(1, received / total) : 0.5
+        updateProgress(job, 0.1 + fraction * 0.28)
+      }
+      callback(null, chunk)
+    },
+  })
+
+  const readable = Readable.fromWeb(
+    response.body as import('node:stream/web').ReadableStream<Uint8Array>
+  )
+  const target = createWriteStream(sourcePath, start > 0 ? { flags: 'a' } : undefined)
+  await pipeline(readable, counter, target, { signal: job.controller.signal })
+  const info = await stat(sourcePath)
+  if (info.size === 0) throw new JobError('The source download is empty', 502)
+  job.sourceComplete = true
+  job.sourceBytes = info.size
+  job.sourceContentLength = info.size
+  updateProgress(job, 0.38)
+  return sourcePath
+}
+
+async function discardResponse(response: Response): Promise<void> {
+  await response.body?.cancel().catch(() => undefined)
+}
+
 async function downloadSource(job: JobRecord, workDir: string): Promise<string> {
   const extension = safeExtension(job.plan.sourceContainer)
   const sourcePath = path.join(workDir, `source.${extension}`)
@@ -329,51 +391,82 @@ async function downloadSource(job: JobRecord, workDir: string): Promise<string> 
     job.sourceComplete = false
   }
 
-  await rm(sourcePath, { force: true }).catch(() => undefined)
+  job.sourceComplete = false
   job.stage = 'downloading-source'
-  updateProgress(job, 0.1)
+  touch(job)
+
+  let existing = 0
+  try {
+    const info = await stat(sourcePath)
+    if (info.isFile() && info.size > 0) existing = info.size
+  } catch {
+    // no partial source
+  }
+
+  if (existing > 0 && job.sourceContentLength !== null && existing >= job.sourceContentLength) {
+    job.sourceComplete = true
+    job.sourceBytes = existing
+    updateProgress(job, 0.38)
+    return sourcePath
+  }
+
+  if (existing > 0) {
+    const fraction =
+      job.sourceContentLength !== null && job.sourceContentLength > 0
+        ? Math.min(1, existing / job.sourceContentLength)
+        : 0.5
+    updateProgress(job, 0.1 + fraction * 0.28)
+  } else {
+    updateProgress(job, 0.1)
+  }
 
   const client = getJellyfinClient()
-  const response = await client.getStream(
+  let response = await client.getStream(
     job.plan.movieId,
     job.plan.sourceId,
-    job.controller.signal
+    job.controller.signal,
+    existing > 0 ? existing : undefined
   )
-  if (!response.body) throw new JobError('Jellyfin did not return the movie content', 502)
-  const contentLength = Number(
-    response.headers.get('content-length') ?? job.plan.sourceSizeBytes ?? 0
-  )
-  job.sourceContentLength = contentLength || null
-  const store = getLocalDownloadsStore()
-  await store.ensureDiskSpace(contentLength || null)
 
-  let received = 0
-  let lastUpdate = 0
-  const counter = new Transform({
-    transform(chunk: Buffer, _encoding, callback) {
-      received += chunk.length
-      const now = Date.now()
-      if (now - lastUpdate > 400) {
-        lastUpdate = now
-        const fraction = contentLength > 0 ? Math.min(1, received / contentLength) : 0.5
-        updateProgress(job, 0.1 + fraction * 0.28)
-      }
-      callback(null, chunk)
-    },
-  })
+  let start = existing
+  let total = 0
 
-  const readable = Readable.fromWeb(
-    response.body as import('node:stream/web').ReadableStream<Uint8Array>
-  )
-  await pipeline(readable, counter, createWriteStream(sourcePath), {
-    signal: job.controller.signal,
-  })
-  const info = await stat(sourcePath)
-  if (info.size === 0) throw new JobError('The source download is empty', 502)
-  job.sourceComplete = true
-  job.sourceBytes = info.size
-  updateProgress(job, 0.38)
-  return sourcePath
+  if (response.status === 416) {
+    const info = await stat(sourcePath).catch(() => null)
+    if (info && job.sourceContentLength !== null && info.size >= job.sourceContentLength) {
+      job.sourceComplete = true
+      job.sourceBytes = info.size
+      updateProgress(job, 0.38)
+      return sourcePath
+    }
+    start = 0
+    await discardResponse(response)
+    await rm(sourcePath, { force: true }).catch(() => undefined)
+    response = await client.getStream(job.plan.movieId, job.plan.sourceId, job.controller.signal)
+    total = Number(response.headers.get('content-length') ?? job.plan.sourceSizeBytes ?? 0)
+  } else if (existing > 0 && response.status === 206) {
+    const range = parseContentRange(response.headers.get('content-range'))
+    if (!range || range.start !== existing || range.total <= existing) {
+      start = 0
+      await discardResponse(response)
+      await rm(sourcePath, { force: true }).catch(() => undefined)
+      response = await client.getStream(job.plan.movieId, job.plan.sourceId, job.controller.signal)
+      total = Number(response.headers.get('content-length') ?? job.plan.sourceSizeBytes ?? 0)
+    } else {
+      start = existing
+      total = range.total
+      job.sourceContentLength = range.total
+    }
+  } else if (existing > 0) {
+    // Jellyfin ignored the range; start over with a full download.
+    start = 0
+    await rm(sourcePath, { force: true }).catch(() => undefined)
+    total = Number(response.headers.get('content-length') ?? job.plan.sourceSizeBytes ?? 0)
+  } else {
+    total = Number(response.headers.get('content-length') ?? job.plan.sourceSizeBytes ?? 0)
+  }
+
+  return receiveSource(job, response, sourcePath, start, total)
 }
 
 function runFfmpeg(
@@ -463,6 +556,27 @@ async function cleanupFailedVideoOutputs(workDir: string): Promise<void> {
   }
 }
 
+function stepMarker(output: string): string {
+  return `${output}.done`
+}
+
+async function runStep(
+  job: JobRecord,
+  command: FfmpegCommand,
+  ffmpegPath: string,
+  progressStart: number,
+  progressEnd: number
+): Promise<void> {
+  if (await stepComplete(command)) {
+    updateProgress(job, progressEnd)
+    return
+  }
+  await rm(stepMarker(command.output), { force: true }).catch(() => undefined)
+  updateProgress(job, progressStart)
+  await runFfmpeg(job, command, ffmpegPath, progressStart, progressEnd)
+  await writeFile(stepMarker(command.output), '')
+}
+
 async function runProcessing(
   job: JobRecord,
   processing: ProcessingPlan,
@@ -473,13 +587,13 @@ async function runProcessing(
     job.stage = 'processing-video'
     touch(job)
     await persistStage()
-    await runFfmpeg(job, processing.burnPreparation, ffmpegPath, 0.38, 0.42)
+    await runStep(job, processing.burnPreparation, ffmpegPath, 0.38, 0.42)
   }
 
   job.stage = 'processing-video'
   touch(job)
   await persistStage()
-  await runFfmpeg(job, processing.video, ffmpegPath, 0.42, 0.72)
+  await runStep(job, processing.video, ffmpegPath, 0.42, 0.72)
 
   if (processing.audio.length) {
     job.stage = 'extracting-audio'
@@ -488,7 +602,7 @@ async function runProcessing(
     for (let index = 0; index < processing.audio.length; index += 1) {
       const command = processing.audio[index]
       if (!command) continue
-      await runFfmpeg(
+      await runStep(
         job,
         command,
         ffmpegPath,
@@ -505,7 +619,7 @@ async function runProcessing(
     for (let index = 0; index < processing.subtitles.length; index += 1) {
       const command = processing.subtitles[index]
       if (!command) continue
-      await runFfmpeg(
+      await runStep(
         job,
         command,
         ffmpegPath,
@@ -530,23 +644,63 @@ async function cleanupWorkExcept(workDir: string, keep: string): Promise<void> {
   }
 }
 
-async function cleanupIntermediateOutputs(
-  workDir: string,
-  sourcePath: string,
-  externalFiles: Map<number, string>
-): Promise<void> {
-  const keep = new Set([
-    path.basename(sourcePath),
-    ...[...externalFiles.values()].map((file) => path.basename(file)),
-  ])
+async function completedStep(outputPath: string): Promise<boolean> {
+  try {
+    const output = await stat(outputPath)
+    if (!output.isFile() || output.size === 0) return false
+    const marker = await stat(stepMarker(outputPath))
+    return marker.isFile()
+  } catch {
+    return false
+  }
+}
+
+async function stepComplete(command: FfmpegCommand): Promise<boolean> {
+  return completedStep(command.output)
+}
+
+function processingCommands(processing: ProcessingPlan): FfmpegCommand[] {
+  return [
+    processing.burnPreparation,
+    processing.video,
+    ...processing.audio,
+    ...processing.subtitles,
+  ].filter((command): command is FfmpegCommand => command !== null)
+}
+
+async function cleanupIncompleteSteps(workDir: string, processing: ProcessingPlan): Promise<void> {
   let entries: string[]
   try {
     entries = await readdir(workDir)
   } catch {
     return
   }
+
+  const expected = new Set(
+    processingCommands(processing).map((command) => path.basename(command.output))
+  )
+  if (processing.burnFile) expected.add(path.basename(processing.burnFile))
+
+  const completed = new Set<string>()
+  for (const name of expected) {
+    if (await completedStep(path.join(workDir, name))) completed.add(name)
+    else {
+      const full = path.join(workDir, name)
+      await rm(full, { force: true, recursive: true }).catch(() => undefined)
+      await rm(stepMarker(full), { force: true }).catch(() => undefined)
+    }
+  }
+
   for (const entry of entries) {
-    if (keep.has(entry)) continue
+    const full = path.join(workDir, entry)
+    if (entry.endsWith('.done')) {
+      const target = entry.slice(0, -'.done'.length)
+      if (!expected.has(target) || !completed.has(target)) {
+        await rm(full, { force: true }).catch(() => undefined)
+      }
+      continue
+    }
+    if (expected.has(entry)) continue
     if (
       entry === 'output.zip' ||
       entry.startsWith('video.') ||
@@ -555,7 +709,7 @@ async function cleanupIntermediateOutputs(
       entry.startsWith('burn-') ||
       entry.endsWith('.tmp')
     ) {
-      await rm(path.join(workDir, entry), { force: true, recursive: true }).catch(() => undefined)
+      await rm(full, { force: true, recursive: true }).catch(() => undefined)
     }
   }
 }
@@ -672,6 +826,10 @@ function baseRecord(plan: DownloadPlan): JobRecord {
     controller: new AbortController(),
     child: null,
     cancelRequested: false,
+    pauseRequested: false,
+    resumeRequested: false,
+    restartRequested: false,
+    runActive: false,
     lastPersist: 0,
   }
 }
@@ -701,6 +859,10 @@ function hydrate(persistedJob: PersistedJob): JobRecord {
     controller: new AbortController(),
     child: null,
     cancelRequested: false,
+    pauseRequested: false,
+    resumeRequested: false,
+    restartRequested: false,
+    runActive: false,
     lastPersist: 0,
   }
 }
@@ -714,8 +876,21 @@ class JobManager {
   constructor() {
     this.readyPromise = this.restore()
     setInterval(() => void this.cleanup(), 10 * 60 * 1000).unref()
-    void getLocalDownloadsStore()
-      .cleanupStaleWork()
+    void this.readyPromise.then(() => this.cleanupStaleWork()).catch(() => undefined)
+  }
+
+  private async cleanupStaleWork(): Promise<void> {
+    const protectedDirs = new Set<string>()
+    for (const job of jobs.values()) {
+      if (
+        (job.state === 'queued' || job.state === 'running' || job.state === 'paused') &&
+        job.workDir
+      ) {
+        protectedDirs.add(job.workDir)
+      }
+    }
+    await getLocalDownloadsStore()
+      .cleanupStaleWork(protectedDirs)
       .catch(() => undefined)
   }
 
@@ -742,6 +917,38 @@ class JobManager {
 
     for (const persistedJob of restored) {
       const job = hydrate(persistedJob)
+      if (job.state === 'paused') {
+        if (store.isEnabled()) {
+          const stored = await store.lookup(job.plan.cacheKey)
+          if (stored) {
+            job.state = 'ready'
+            job.stage = 'ready'
+            job.progress = 1
+            job.cached = true
+            job.stored = true
+            job.processingMs = stored.meta.processingMs ?? 0
+            job.outputPath = stored.path
+            job.outputFilename = stored.meta.filename
+            job.outputKind = stored.meta.kind
+            job.outputSize = stored.meta.sizeBytes
+            job.outputContentType = stored.meta.contentType
+            job.error = null
+            job.errorCode = null
+            if (job.workDir) await store.cleanupWorkDir(job.workDir)
+            job.workDir = null
+            jobs.set(job.id, job)
+            await this.persist(job, true)
+            continue
+          }
+        }
+        if (!activeByKey.has(job.plan.cacheKey)) {
+          activeByKey.set(job.plan.cacheKey, job.id)
+        }
+        jobs.set(job.id, job)
+        await this.persist(job, true)
+        continue
+      }
+
       if (job.state === 'queued' || job.state === 'running') {
         if (store.isEnabled()) {
           const stored = await store.lookup(job.plan.cacheKey)
@@ -795,17 +1002,20 @@ class JobManager {
 
     if (restored.length) {
       let queued = 0
+      let paused = 0
       let ready = 0
       let failed = 0
       for (const persistedJob of restored) {
         const state = jobs.get(persistedJob.id)?.state
         if (state === 'queued' || state === 'running') queued += 1
+        else if (state === 'paused') paused += 1
         else if (state === 'ready') ready += 1
         else if (state === 'failed') failed += 1
       }
       void logEvent('info', 'jobs.restored', `Restored ${restored.length} job(s)`, {
         total: restored.length,
         queued,
+        paused,
         ready,
         failed,
       })
@@ -834,6 +1044,9 @@ class JobManager {
       const existing = jobs.get(activeId)
       if (existing && (existing.state === 'queued' || existing.state === 'running')) {
         return toStatus(existing)
+      }
+      if (existing && existing.state === 'paused') {
+        return this.resume(existing.id)
       }
       activeByKey.delete(plan.cacheKey)
     }
@@ -937,9 +1150,11 @@ class JobManager {
   }> {
     await this.ready()
     const all = [...jobs.values()]
-    const isActive = (job: JobRecord) => job.state === 'queued' || job.state === 'running'
+    const isActive = (job: JobRecord) =>
+      job.state === 'queued' || job.state === 'running' || job.state === 'paused'
     const filtered = options.state === 'all' ? all : all.filter(isActive)
-    const rank = (job: JobRecord) => (job.state === 'running' ? 0 : job.state === 'queued' ? 1 : 2)
+    const rank = (job: JobRecord) =>
+      job.state === 'running' ? 0 : job.state === 'queued' ? 1 : job.state === 'paused' ? 2 : 3
     const sorted = [...filtered].sort((a, b) => {
       const byRank = rank(a) - rank(b)
       if (byRank !== 0) return byRank
@@ -966,6 +1181,12 @@ class JobManager {
     return { job, path: job.outputPath }
   }
 
+  private releaseKey(job: JobRecord): void {
+    if (activeByKey.get(job.plan.cacheKey) === job.id) {
+      activeByKey.delete(job.plan.cacheKey)
+    }
+  }
+
   async cancel(id: string): Promise<DownloadJobStatus> {
     await this.ready()
     const job = jobs.get(id)
@@ -973,24 +1194,32 @@ class JobManager {
     if (job.state === 'ready' || job.state === 'failed' || job.state === 'cancelled') {
       throw new JobError('The job has already finished', 409, 'JOB_FINISHED')
     }
+
     job.cancelRequested = true
+    job.pauseRequested = false
+    job.resumeRequested = false
+    job.restartRequested = false
     job.controller.abort()
     if (job.child) job.child.kill('SIGKILL')
-    if (job.state === 'queued') {
+
+    if (job.state === 'paused' || job.state === 'queued') {
+      const wasPaused = job.state === 'paused'
       const index = queue.indexOf(job.id)
       if (index >= 0) queue.splice(index, 1)
+      stopProcessingTimer(job)
       job.state = 'cancelled'
       job.stage = 'ready'
       job.error = 'Download cancelled'
       job.errorCode = 'CANCELLED'
       touch(job)
       await this.persist(job, true)
-      activeByKey.delete(job.plan.cacheKey)
+      this.releaseKey(job)
       if (job.workDir) await getLocalDownloadsStore().cleanupWorkDir(job.workDir)
+      job.workDir = null
       void logEvent(
         'warn',
         'job.cancelled',
-        `Cancelled queued download: ${job.plan.downloadName}`,
+        `Cancelled ${wasPaused ? 'paused' : 'queued'} download: ${job.plan.downloadName}`,
         {
           jobId: job.id,
           movieId: job.plan.movieId,
@@ -1000,18 +1229,189 @@ class JobManager {
     return toStatus(job)
   }
 
+  async pause(id: string): Promise<DownloadJobStatus> {
+    await this.ready()
+    const job = jobs.get(id)
+    if (!job) throw new JobError('Job not found', 404, 'JOB_NOT_FOUND')
+    if (job.state === 'paused') return toStatus(job)
+    if (job.state !== 'queued' && job.state !== 'running') {
+      throw new JobError('The job has already finished', 409, 'JOB_FINISHED')
+    }
+
+    const wasQueued = job.state === 'queued'
+    job.pauseRequested = true
+    job.cancelRequested = false
+    job.resumeRequested = false
+    job.restartRequested = false
+    if (wasQueued) {
+      const index = queue.indexOf(job.id)
+      if (index >= 0) queue.splice(index, 1)
+    } else {
+      job.controller.abort()
+      if (job.child) job.child.kill('SIGKILL')
+    }
+
+    stopProcessingTimer(job)
+    job.state = 'paused'
+    job.error = null
+    job.errorCode = null
+    touch(job)
+    await this.persist(job, true)
+    void logEvent('info', 'job.paused', `Paused download: ${job.plan.downloadName}`, {
+      jobId: job.id,
+      movieId: job.plan.movieId,
+      stage: job.stage,
+    })
+    return toStatus(job)
+  }
+
+  async resume(id: string): Promise<DownloadJobStatus> {
+    await this.ready()
+    const job = jobs.get(id)
+    if (!job) throw new JobError('Job not found', 404, 'JOB_NOT_FOUND')
+    if (job.state === 'queued' || job.state === 'running') return toStatus(job)
+    if (job.state !== 'paused') {
+      throw new JobError('The job is not paused', 409, 'JOB_NOT_PAUSED')
+    }
+
+    job.pauseRequested = false
+    job.error = null
+    job.errorCode = null
+    touch(job)
+
+    if (job.runActive) {
+      job.resumeRequested = true
+      await this.persist(job, true)
+      return toStatus(job)
+    }
+
+    await this.requeue(job)
+    return toStatus(job)
+  }
+
+  async restart(id: string): Promise<DownloadJobStatus> {
+    await this.ready()
+    const job = jobs.get(id)
+    if (!job) throw new JobError('Job not found', 404, 'JOB_NOT_FOUND')
+    if (job.state !== 'paused' && job.state !== 'failed' && job.state !== 'cancelled') {
+      throw new JobError('Pause or cancel the job before restarting it', 409, 'JOB_ACTIVE')
+    }
+
+    if (job.runActive) {
+      job.restartRequested = true
+      touch(job)
+      await this.persist(job, true)
+      return toStatus(job)
+    }
+
+    await this.resetJob(job)
+    return toStatus(job)
+  }
+
+  private async requeue(job: JobRecord): Promise<void> {
+    job.state = 'queued'
+    job.stage = 'preparing'
+    job.error = null
+    job.errorCode = null
+    job.resumeRequested = false
+    job.restartRequested = false
+    job.cancelRequested = false
+    job.pauseRequested = false
+    job.controller = new AbortController()
+    if (!queue.includes(job.id)) queue.push(job.id)
+    activeByKey.set(job.plan.cacheKey, job.id)
+    touch(job)
+    await this.persist(job, true)
+    void logEvent('info', 'job.resumed', `Resumed download: ${job.plan.downloadName}`, {
+      jobId: job.id,
+      movieId: job.plan.movieId,
+    })
+    void this.processQueue()
+  }
+
+  private async resetJob(job: JobRecord): Promise<void> {
+    if (job.workDir) {
+      await getLocalDownloadsStore().cleanupWorkDir(job.workDir)
+    }
+    const index = queue.indexOf(job.id)
+    if (index >= 0) queue.splice(index, 1)
+    stopProcessingTimer(job)
+    job.workDir = null
+    job.sourceComplete = false
+    job.sourceBytes = null
+    job.sourceContentLength = null
+    job.attempts = 0
+    job.processingMs = 0
+    job.processingStartedAt = null
+    job.progress = 0
+    job.state = 'queued'
+    job.stage = 'preparing'
+    job.error = null
+    job.errorCode = null
+    job.cached = false
+    job.stored = false
+    job.outputPath = null
+    job.outputFilename = null
+    job.outputKind = null
+    job.outputSize = null
+    job.outputContentType = null
+    job.cancelRequested = false
+    job.pauseRequested = false
+    job.resumeRequested = false
+    job.restartRequested = false
+    job.controller = new AbortController()
+    if (!queue.includes(job.id)) queue.push(job.id)
+    activeByKey.set(job.plan.cacheKey, job.id)
+    touch(job)
+    await this.persist(job, true)
+    void logEvent('info', 'job.restarted', `Restarted download: ${job.plan.downloadName}`, {
+      jobId: job.id,
+      movieId: job.plan.movieId,
+    })
+    void this.processQueue()
+  }
+
   private async runJob(job: JobRecord): Promise<void> {
+    job.runActive = true
     job.state = 'running'
     job.stage = 'preparing'
     job.error = null
     job.errorCode = null
     startProcessingTimer(job)
-    updateProgress(job, 0.01)
+    if (!job.progress) updateProgress(job, 0.01)
     await this.persist(job, true)
 
     const store = getLocalDownloadsStore()
     let workDir: string | null = job.workDir
     try {
+      if (store.isEnabled()) {
+        const stored = await store.lookup(job.plan.cacheKey)
+        if (stored) {
+          if (job.workDir) await store.cleanupWorkDir(job.workDir)
+          job.workDir = null
+          stopProcessingTimer(job)
+          job.state = 'ready'
+          job.stage = 'ready'
+          job.progress = 1
+          job.cached = true
+          job.stored = true
+          job.processingMs = stored.meta.processingMs ?? 0
+          job.outputPath = stored.path
+          job.outputFilename = stored.meta.filename
+          job.outputKind = stored.meta.kind
+          job.outputSize = stored.meta.sizeBytes
+          job.outputContentType = stored.meta.contentType
+          job.error = null
+          job.errorCode = null
+          await this.persist(job, true)
+          void logEvent('info', 'job.cached', `Reused stored result for ${job.plan.movieTitle}`, {
+            jobId: job.id,
+            movieId: job.plan.movieId,
+            filename: job.plan.downloadName,
+          })
+          return
+        }
+      }
       await store.ensureReady()
       if (!workDir) workDir = await store.createWorkDir()
       else await mkdir(workDir, { recursive: true })
@@ -1028,7 +1428,7 @@ class JobManager {
         workDir,
         externalSubtitleFiles,
       })
-      await cleanupIntermediateOutputs(workDir, sourcePath, externalSubtitleFiles)
+      await cleanupIncompleteSteps(workDir, processing)
       const ffmpeg = await requireFfmpeg()
       let activeProcessing = processing
       try {
@@ -1064,6 +1464,13 @@ class JobManager {
       }
       await finalizeOutput(job, activeProcessing, workDir, () => this.persist(job, true))
 
+      if (job.pauseRequested) {
+        throw new JobError('Download paused', 499, 'PAUSED')
+      }
+      if (job.cancelRequested) {
+        throw new JobError('Download cancelled', 499, 'CANCELLED')
+      }
+
       stopProcessingTimer(job)
       job.state = 'ready'
       job.stage = 'ready'
@@ -1079,6 +1486,37 @@ class JobManager {
       })
     } catch (error) {
       stopProcessingTimer(job)
+
+      if (job.cancelRequested) {
+        job.state = 'cancelled'
+        job.stage = 'ready'
+        job.error = 'Download cancelled'
+        job.errorCode = 'CANCELLED'
+        if (workDir) await store.cleanupWorkDir(workDir)
+        job.workDir = null
+        touch(job)
+        await this.persist(job, true)
+        void logEvent('warn', 'job.cancelled', `Cancelled download: ${job.plan.downloadName}`, {
+          jobId: job.id,
+          movieId: job.plan.movieId,
+        })
+        return
+      }
+
+      if (job.pauseRequested) {
+        job.state = 'paused'
+        job.error = null
+        job.errorCode = null
+        touch(job)
+        await this.persist(job, true)
+        void logEvent('info', 'job.paused', `Paused download: ${job.plan.downloadName}`, {
+          jobId: job.id,
+          movieId: job.plan.movieId,
+          stage: job.stage,
+        })
+        return
+      }
+
       if (this.shuttingDown) {
         job.state = 'queued'
         job.stage = 'preparing'
@@ -1090,18 +1528,19 @@ class JobManager {
         return
       }
 
-      if (job.cancelRequested || job.controller.signal.aborted) {
+      if (job.controller.signal.aborted) {
         job.state = 'cancelled'
+        job.stage = 'ready'
         job.error = 'Download cancelled'
         job.errorCode = 'CANCELLED'
       } else {
         job.state = 'failed'
+        job.stage = 'ready'
         job.error = friendlyError(error)
         job.errorCode = errorCode(error)
         console.error(`[jobs] ${job.id}:`, error)
         if (error instanceof FfmpegError) console.error(error.details)
       }
-      job.stage = 'ready'
       if (workDir) await store.cleanupWorkDir(workDir)
       job.workDir = null
       touch(job)
@@ -1120,7 +1559,16 @@ class JobManager {
     } finally {
       stopProcessingTimer(job)
       job.child = null
+      job.runActive = false
       if (!this.shuttingDown) job.controller = new AbortController()
+
+      if (job.restartRequested) {
+        await this.resetJob(job)
+      } else if (job.resumeRequested && job.state === 'paused') {
+        await this.requeue(job)
+      } else if (job.state !== 'paused' && job.state !== 'queued') {
+        this.releaseKey(job)
+      }
     }
   }
 
@@ -1132,11 +1580,10 @@ class JobManager {
         const id = queue.shift()
         if (!id) continue
         const job = jobs.get(id)
-        if (!job || job.state !== 'queued') continue
+        if (!job || job.state !== 'queued' || job.runActive) continue
         active += 1
         void this.runJob(job).finally(() => {
           active -= 1
-          activeByKey.delete(job.plan.cacheKey)
           void this.processQueue()
         })
       }
@@ -1149,11 +1596,14 @@ class JobManager {
     const store = getLocalDownloadsStore()
     await store.prune().catch(() => undefined)
     const cutoff = Date.now() - JOB_TTL_MS
-    await this.store.cleanup(cutoff)
+    const pausedCutoff = Date.now() - PAUSED_TTL_MS
+    await this.store.cleanup(cutoff, pausedCutoff)
     for (const [id, job] of jobs) {
       if (job.state === 'queued' || job.state === 'running') continue
-      if (Date.parse(job.updatedAt) >= cutoff) continue
+      const limit = job.state === 'paused' ? pausedCutoff : cutoff
+      if (Date.parse(job.updatedAt) >= limit) continue
       if (job.workDir) await store.cleanupWorkDir(job.workDir)
+      this.releaseKey(job)
       jobs.delete(id)
     }
   }
