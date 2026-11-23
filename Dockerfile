@@ -30,7 +30,7 @@ ENV NODE_ENV=production \
 
 COPY --from=build /app/build ./build
 COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/startup.ts ./startup.ts
+COPY --from=build /app/.dovenv/scripts/startup.ts ./startup.ts
 
 RUN mkdir -p /data/downloads /data/jobs /data/logs && chown -R node:node /data
 USER node

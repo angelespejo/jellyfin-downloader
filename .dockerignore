@@ -7,7 +7,7 @@ build
 .env.*
 !.env.example
 data
-.dovenv
+.dovenv/dev
 dev
 scripts
 tests

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { spawn, spawnSync } from 'node:child_process'
 import { argv } from 'node:process'
-import { printBanner } from '../../startup.ts'
+import { printBanner } from './startup.ts'
 
 const port = Number(process.env.MOCK_JELLYFIN_PORT ?? 8096)
 const apiKey = process.env.MOCK_API_KEY ?? 'dev-key'
