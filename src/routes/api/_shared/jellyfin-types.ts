@@ -29,6 +29,7 @@ export interface JellyfinMediaSource {
   Protocol?: string
   IsRemote?: boolean
   MediaStreams?: JellyfinMediaStream[]
+  Type?: string
 }
 
 export interface JellyfinItem {
@@ -46,6 +47,7 @@ export interface JellyfinItem {
   ParentIndexNumber?: number
   IndexNumber?: number
   ChildCount?: number
+  LocationType?: string
 }
 
 export interface JellyfinItemsResult {

@@ -63,8 +63,8 @@ light and dark** themes.
 
 ## What it does
 
-- **Search movies, series and home videos** from Jellyfin, with deep-linkable
-  results, poster cards and infinite scroll with server-side pagination.
+- **Search movies, series and home videos** using Jellyfin's native search, with
+  deep-linkable results, poster cards and infinite scroll with pagination.
 - **Inspect real media sources**: video resolution, container, size, audio
   languages, subtitle tracks and multiple versions.
 - **Open the item in Jellyfin** from the media dialog with the play button.
@@ -76,13 +76,15 @@ light and dark** themes.
   independently.
 - **Use hardware encoding** automatically when VideoToolbox, NVENC, QSV or VAAPI
   is available, with a software fallback.
-- **Download series in batches**: select episodes or whole seasons and apply one
-  configuration.
+- **Download series in batches**: seasons collapsed by default, unavailable
+  virtual episodes excluded, and one configuration for the selection.
 - **Watch the queue**: active downloads appear on the cards and in a dedicated
   queue tab, and can be cancelled from the dialog or the downloads page.
 - **Reuse local results** with deterministic cache keys and replicate a previous
   configuration from its badge.
 - **See processing time** and original source size for every finished download.
+- **Deep links for episodes** (`?modal=<episodeId>`) with a back button to the
+  series and selectable seasons.
 - **Keep notes and logs**: global notifications plus persisted JSONL logs in
   **Settings → Logs**.
 - **Durable jobs**: queued and running jobs survive restarts and continue

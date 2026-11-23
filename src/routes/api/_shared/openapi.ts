@@ -32,10 +32,10 @@ export const openapiDocument = {
     '/movies': {
       get: {
         tags: ['Catalog'],
-        summary: 'List or search catalog items (movies, series and home videos)',
+        summary: 'List or search catalog items using Jellyfin native search',
         parameters: [
           { name: 'q', in: 'query', schema: { type: 'string' } },
-          { name: 'limit', in: 'query', schema: { type: 'integer', default: 100, maximum: 500 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 100, maximum: 100 } },
           { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
         ],
         responses: { '200': { description: 'Catalog page' } },
@@ -52,12 +52,23 @@ export const openapiDocument = {
     '/series/{id}': {
       get: {
         tags: ['Catalog'],
-        summary: 'Series details with its episodes',
+        summary: 'Series details with available episodes (light payload)',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
-          '200': { description: 'Series with episodes' },
+          '200': { description: 'Series with available episodes and unavailable count' },
           '400': { description: 'The item is not a series' },
           '404': { description: 'Not found' },
+        },
+      },
+    },
+    '/series/{id}/size': {
+      get: {
+        tags: ['Catalog'],
+        summary: 'Total size of the available episodes in a series',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'Total size or null when unavailable' },
+          '400': { description: 'Invalid series ID' },
         },
       },
     },
@@ -177,6 +188,25 @@ export const openapiDocument = {
           },
         ],
         responses: { '200': { description: 'Stored downloads' } },
+      },
+    },
+    '/local-downloads/count': {
+      get: {
+        tags: ['Local store'],
+        summary: 'Count stored downloads for an item or series',
+        parameters: [
+          {
+            name: 'movieId',
+            in: 'query',
+            schema: { type: 'string', pattern: '^[0-9a-fA-F]{32}$' },
+          },
+          {
+            name: 'seriesId',
+            in: 'query',
+            schema: { type: 'string', pattern: '^[0-9a-fA-F]{32}$' },
+          },
+        ],
+        responses: { '200': { description: 'Stored download count' } },
       },
     },
     '/local-downloads/{key}': {

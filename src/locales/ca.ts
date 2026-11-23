@@ -144,6 +144,8 @@ export const ca: Record<MessageKey, string> = {
   'detail.series.special': 'Especials',
   'detail.series.season': 'Temporada {season}',
   'detail.series.episodes': '{count} episodis',
+  'detail.series.calculatingSize': 'Calculant la mida…',
+  'detail.series.unavailable': '{count} episodis no estan disponibles al servidor.',
   'detail.series.back': 'Tornar als episodis',
   'detail.series.loading': 'Carregant episodis…',
   'detail.series.error': 'No s’ha pogut carregar la sèrie.',

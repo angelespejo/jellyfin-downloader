@@ -289,13 +289,10 @@ export function toMovieDetail(item: JellyfinItem): MovieDetail {
 export function toSeriesDetail(
   item: JellyfinItem,
   episodes: JellyfinItem[],
-  counts: Map<string, number>
+  counts: Map<string, number>,
+  unavailableEpisodes = 0
 ): SeriesDetail {
   const summaries = episodes.map((episode) => toMovieSummary(episode, counts.get(episode.Id) ?? 0))
-  const totalSizeBytes = summaries.reduce((total, episode) => {
-    const size = episode.media?.sizeBytes ?? 0
-    return size > 0 ? total + size : total
-  }, 0)
   return {
     id: item.Id,
     title: item.Name,
@@ -303,7 +300,8 @@ export function toSeriesDetail(
     overview: item.Overview ?? null,
     imageTag: imageTag(item),
     kind: 'series',
-    totalSizeBytes: totalSizeBytes > 0 ? totalSizeBytes : null,
+    totalSizeBytes: null,
+    unavailableEpisodes,
     episodes: summaries,
   }
 }

@@ -19,6 +19,13 @@ All notable changes are documented here. The format follows
   cancel actions.
 - Play in Jellyfin link in the media dialog, redirected server-side to avoid
   exposing the internal Jellyfin URL.
+- Episode deep links: the dialog URL switches to the episode id, keeping a back
+  button to the series (including links from Downloads).
+- Collapsible seasons (closed by default) with unavailable virtual episodes
+  filtered out and reported.
+- Background series-size calculation with a visible loading state.
+- Search uses Jellyfin's native `SearchTerm` with pagination; the whole catalog is
+  no longer downloaded on the first query.
 - Active processing time stored per job and shown in the dialog and downloads;
   existing jobs show the original processing time when reused.
 - Infinite scroll for the library search and the persisted logs, with visible
@@ -44,6 +51,8 @@ All notable changes are documented here. The format follows
   Settings; it is logged on startup.
 - The library page no longer loads the whole catalog during SSR; search results
   are paginated on the server as the user scrolls.
+- The Downloads tab counter now follows the stored results total instead of the
+  initial summary snapshot, including deep links and background completions.
 - Deleting a stored download confirms with a floating toast instead of an inline
   notice.
 - The bundled `docker-compose.yml` pulls the published

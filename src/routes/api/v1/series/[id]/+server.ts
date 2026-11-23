@@ -19,5 +19,5 @@ export const GET: RequestHandler = apiRoute(async ({ params }) => {
       .getMovieCounts()
       .catch(() => new Map<string, number>()),
   ])
-  return jsonResponse(toSeriesDetail(series, episodes, counts))
+  return jsonResponse(toSeriesDetail(series, episodes.items, counts, episodes.unavailable))
 })

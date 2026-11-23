@@ -203,6 +203,7 @@ export interface SeriesDetail {
   imageTag: string | null
   kind: 'series'
   totalSizeBytes: number | null
+  unavailableEpisodes: number
   episodes: MovieSummary[]
 }
 

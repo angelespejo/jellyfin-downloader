@@ -71,5 +71,13 @@ test('series detail includes its episodes', () => {
   assert.equal(detail.kind, 'series')
   assert.equal(detail.episodes.length, 1)
   assert.equal(detail.episodes[0]?.downloadCount, 1)
-  assert.equal(detail.totalSizeBytes, 1000)
+  assert.equal(detail.totalSizeBytes, null)
+  assert.equal(detail.unavailableEpisodes, 0)
+  const withUnavailable = toSeriesDetail(
+    { Id: '4'.repeat(32), Name: 'Series', Type: 'Series' },
+    [episode],
+    new Map(),
+    3
+  )
+  assert.equal(withUnavailable.unavailableEpisodes, 3)
 })

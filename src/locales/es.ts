@@ -143,6 +143,8 @@ export const es: Record<MessageKey, string> = {
   'detail.series.special': 'Especiales',
   'detail.series.season': 'Temporada {season}',
   'detail.series.episodes': '{count} episodios',
+  'detail.series.calculatingSize': 'Calculando peso…',
+  'detail.series.unavailable': '{count} episodios no están disponibles en el servidor.',
   'detail.series.back': 'Volver a los episodios',
   'detail.series.loading': 'Cargando episodios…',
   'detail.series.error': 'No se pudo cargar la serie.',

@@ -33,6 +33,11 @@ interface CacheEntry<T> {
 const LIST_CACHE_MS = 5 * 60 * 1000
 const DETAIL_CACHE_MS = 60 * 1000
 
+export interface SeriesEpisodesResult {
+  items: JellyfinItem[]
+  unavailable: number
+}
+
 class JellyfinClient {
   private readonly base: string
   private readonly apiKey: string
@@ -41,8 +46,9 @@ class JellyfinClient {
   private listCache: CacheEntry<JellyfinItem[]> | null = null
   private listPromise: Promise<JellyfinItem[]> | null = null
   private readonly detailCache = new Map<string, CacheEntry<JellyfinItem>>()
-  private readonly episodesCache = new Map<string, CacheEntry<JellyfinItem[]>>()
-  private readonly episodesPromise = new Map<string, Promise<JellyfinItem[]>>()
+  private readonly episodesCache = new Map<string, CacheEntry<SeriesEpisodesResult>>()
+  private readonly episodesPromise = new Map<string, Promise<SeriesEpisodesResult>>()
+  private readonly seriesSizeCache = new Map<string, CacheEntry<number>>()
 
   constructor(base: string, apiKey: string) {
     this.base = base.endsWith('/') ? base : `${base}/`
@@ -222,7 +228,7 @@ class JellyfinClient {
     return items
   }
 
-  async getSeriesEpisodes(seriesId: string): Promise<JellyfinItem[]> {
+  async getSeriesEpisodes(seriesId: string): Promise<SeriesEpisodesResult> {
     if (!isValidJellyfinId(seriesId)) throw new JellyfinError('Invalid series ID', 400)
     const cached = this.episodesCache.get(seriesId)
     if (cached && cached.expiresAt > Date.now()) return cached.value
@@ -230,12 +236,12 @@ class JellyfinClient {
     if (pending) return pending
 
     const promise = this.fetchSeriesEpisodes(seriesId)
-      .then((items) => {
+      .then((result) => {
         this.episodesCache.set(seriesId, {
-          value: items,
+          value: result,
           expiresAt: Date.now() + LIST_CACHE_MS,
         })
-        return items
+        return result
       })
       .finally(() => {
         this.episodesPromise.delete(seriesId)
@@ -244,19 +250,18 @@ class JellyfinClient {
     return promise
   }
 
-  private async fetchSeriesEpisodes(seriesId: string): Promise<JellyfinItem[]> {
+  private async fetchSeriesEpisodes(seriesId: string): Promise<SeriesEpisodesResult> {
     const pageSize = 500
     const maxItems = 20_000
     const userId = await this.resolveUserId()
     const items: JellyfinItem[] = []
+    let unavailable = 0
     for (let start = 0; start < maxItems; start += pageSize) {
       const result = await this.requestJson<JellyfinItemsResult>(`/Shows/${seriesId}/Episodes`, {
         params: {
           Fields:
-            'Type,ProductionYear,RunTimeTicks,Overview,ImageTags,PrimaryImageAspectRatio,MediaSources,SeriesId,SeriesName,SeasonId,ParentIndexNumber,IndexNumber',
-          EnableImages: true,
-          ImageTypeLimit: 1,
-          EnableImageTypes: 'Primary',
+            'Type,ProductionYear,RunTimeTicks,SeriesId,SeriesName,SeasonId,ParentIndexNumber,IndexNumber,LocationType',
+          EnableImages: false,
           EnableTotalRecordCount: true,
           Limit: pageSize,
           StartIndex: start,
@@ -264,14 +269,77 @@ class JellyfinClient {
         },
       })
       const page = result.Items ?? []
-      items.push(...page)
-      const total = result.TotalRecordCount ?? items.length
-      if (page.length < pageSize || items.length >= total) break
+      for (const episode of page) {
+        if (episode.LocationType === 'Virtual') unavailable += 1
+        else items.push(episode)
+      }
+      const total = result.TotalRecordCount ?? items.length + unavailable
+      if (page.length < pageSize || items.length + unavailable >= total) break
     }
-    return items.sort((a, b) => {
-      const season = (a.ParentIndexNumber ?? 0) - (b.ParentIndexNumber ?? 0)
-      return season !== 0 ? season : (a.IndexNumber ?? 0) - (b.IndexNumber ?? 0)
-    })
+    return {
+      items: items.sort((a, b) => {
+        const season = (a.ParentIndexNumber ?? 0) - (b.ParentIndexNumber ?? 0)
+        return season !== 0 ? season : (a.IndexNumber ?? 0) - (b.IndexNumber ?? 0)
+      }),
+      unavailable,
+    }
+  }
+
+  async searchCatalog(
+    query: string,
+    limit: number,
+    offset: number
+  ): Promise<{ items: JellyfinItem[]; total: number }> {
+    const params: Record<string, string | number | boolean> = {
+      Recursive: true,
+      IncludeItemTypes: 'Movie,Video,Series',
+      SearchTerm: query,
+      Fields: 'Type,ProductionYear,ImageTags,SeriesId,SeriesName,ChildCount',
+      EnableImages: true,
+      ImageTypeLimit: 1,
+      EnableImageTypes: 'Primary',
+      EnableTotalRecordCount: true,
+      SortBy: 'SortName',
+      SortOrder: 'Ascending',
+      Limit: limit,
+      StartIndex: offset,
+    }
+    if (/^\d{4}$/.test(query)) params.Years = query
+    const result = await this.requestJson<JellyfinItemsResult>('/Items', { params })
+    const items = result.Items ?? []
+    return { items, total: result.TotalRecordCount ?? items.length }
+  }
+
+  async getSeriesSize(seriesId: string): Promise<number> {
+    if (!isValidJellyfinId(seriesId)) throw new JellyfinError('Invalid series ID', 400)
+    const cached = this.seriesSizeCache.get(seriesId)
+    if (cached && cached.expiresAt > Date.now()) return cached.value
+    const pageSize = 500
+    const maxItems = 20_000
+    const userId = await this.resolveUserId()
+    let total = 0
+    for (let start = 0; start < maxItems; start += pageSize) {
+      const result = await this.requestJson<JellyfinItemsResult>(`/Shows/${seriesId}/Episodes`, {
+        params: {
+          Fields: 'MediaSources,LocationType',
+          EnableImages: false,
+          EnableTotalRecordCount: true,
+          Limit: pageSize,
+          StartIndex: start,
+          ...(userId ? { userId } : {}),
+        },
+      })
+      const page = result.Items ?? []
+      for (const episode of page) {
+        if (episode.LocationType === 'Virtual') continue
+        const source = episode.MediaSources?.find((candidate) => candidate.Type !== 'Placeholder')
+        if (source?.Size) total += source.Size
+      }
+      const recordTotal = result.TotalRecordCount ?? start + page.length
+      if (page.length < pageSize || start + page.length >= recordTotal) break
+    }
+    this.seriesSizeCache.set(seriesId, { value: total, expiresAt: Date.now() + LIST_CACHE_MS })
+    return total
   }
 
   async getMovie(id: string): Promise<JellyfinItem> {

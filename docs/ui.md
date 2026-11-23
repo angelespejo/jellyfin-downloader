@@ -7,7 +7,8 @@
 - centered search field, reflected in the URL as `?q=` (debounced, `replace`
   history);
 - server-side search with pages of 48 results and infinite scroll (plus a visible
-  **Load more** button) so large libraries stay responsive;
+  **Load more** button); search uses Jellyfin's native terms instead of loading
+  the whole catalog;
 - an initial empty state until the user types a query — no cards are rendered
   before searching;
 - a distinct no-results state when the search has no matches;
@@ -32,7 +33,8 @@ viewport and paints above the sticky header and footer.
   badges with tooltips; a **Play in Jellyfin** link; source selector; collapsible
   output, audio and subtitle sections; select/deselect-all controls for audio and
   subtitles; local-store status; download button, generated filename and job
-  progress (with cancel and processing time).
+  progress (with cancel and processing time). Episode URLs update to
+  `?modal=<episodeId>` and keep a back button to the series.
 - **Downloads (N)** — local results for that movie, home video or episode, with
   size, date, download link, configuration badge and a styled delete
   confirmation. A series lists downloads for all of its episodes.
@@ -47,12 +49,15 @@ the source resolution and the dialog shows a short notice. The info icon next
 to each field opens its description on click or tap and shows the same text as
 a native tooltip on hover/focus.
 
-Series cards open an episode list grouped by season. A **Download episodes**
-action enables compact episode/season checkboxes, select-all/clear controls and
-a single configuration screen for the whole selection. Selecting one episode
-loads the normal detail flow with a back button. `OutputSettings` exposes a
-hardware-acceleration checkbox when the server detects a compatible GPU encoder;
-it is enabled by default.
+Series cards open an episode list grouped by season. Seasons are collapsed by
+default and load their rows when opened. Virtual episodes that are not backed by
+a file are excluded and reported as unavailable. The series total size is
+calculated in the background with a visible loading state. A **Download
+episodes** action enables compact episode/season checkboxes, select-all/clear
+controls and a single configuration screen for the whole selection. Selecting one
+episode loads the normal detail flow with a back button. `OutputSettings` exposes
+a hardware-acceleration checkbox when the server detects a compatible GPU
+encoder; it is enabled by default.
 
 The dialog traps focus, closes on Escape or backdrop click, animates open/close,
 and returns focus to the card.

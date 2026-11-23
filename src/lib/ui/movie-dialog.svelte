@@ -48,6 +48,9 @@
     onstored,
     ondeleted,
     initialConfig = null,
+    initialConfigForId = null,
+    episodeId = null,
+    onepisodechange,
   }: {
     movie: MovieSummary
     settings: SettingsDocument
@@ -57,6 +60,9 @@
     onstored?: (movieId: string) => void
     ondeleted?: (itemId: string) => void
     initialConfig?: DownloadConfig | null
+    initialConfigForId?: string | null
+    episodeId?: string | null
+    onepisodechange?: (id: string | null) => void
   } = $props()
 
   const i18n = getI18n()
@@ -91,7 +97,11 @@
   let downloadsEnabled = $state(true)
   let downloadsLoading = $state(false)
   let downloadsError = $state<string | null>(null)
+  let downloadsTotal = $state(0)
+  let downloadsLoaded = $state(false)
+  let downloadsScope = ''
   let downloadsRequest = 0
+  let previousQueueActive = 0
   let deleting = $state(false)
   let pendingDelete = $state<LocalDownloadInfo | null>(null)
   let pendingJobCancel = $state<DownloadJobStatus | null>(null)
@@ -102,6 +112,9 @@
   } | null>(null)
   let cancellingJob = $state(false)
   let sectionOpen = $state({ output: true, audio: true, subtitles: true })
+  let openSeasons = $state<Record<number, boolean>>({})
+  let seriesSizeBytes = $state<number | null>(null)
+  let seriesSizeLoading = $state(false)
 
   // Local fallback for items whose summary is not re-fetched after a store/delete.
   let countAdjustments = $state<Record<string, number>>({})
@@ -143,6 +156,7 @@
   const activeItem = $derived<MovieSummary>(selectedEpisode ?? movie)
   const seriesListMode = $derived(isSeries && !selectedEpisode)
   const downloadsCount = $derived.by(() => {
+    if (downloadsLoaded) return downloadsTotal
     if (seriesListMode) {
       return (series?.episodes ?? []).reduce((total, episode) => total + episode.downloadCount, 0)
     }
@@ -403,8 +417,11 @@
         return
       }
       const nextDetail = payload as MovieDetail
+      const configTarget = initialConfigForId ?? movie.id
       const config =
-        !initialConfigApplied && initialConfig && nextDetail.id === movie.id ? initialConfig : null
+        !initialConfigApplied && initialConfig && nextDetail.id === configTarget
+          ? initialConfig
+          : null
       const requestedSource = config?.mediaSourceId
         ? nextDetail.sources.find((candidate) => candidate.id === config.mediaSourceId)
         : null
@@ -449,6 +466,11 @@
   async function loadDownloads(): Promise<void> {
     const requestId = ++downloadsRequest
     const seriesMode = seriesListMode
+    const scope = seriesMode ? `series:${movie.id}` : `item:${activeItem.id}`
+    if (scope !== downloadsScope) {
+      downloadsScope = scope
+      downloadsLoaded = false
+    }
     const query = seriesMode
       ? `seriesId=${encodeURIComponent(movie.id)}`
       : `movieId=${encodeURIComponent(activeItem.id)}`
@@ -462,9 +484,15 @@
         downloadsError = errorMessage(payload, i18n.t('detail.downloads.error'))
         return
       }
-      const body = payload as { enabled: boolean; items: LocalDownloadInfo[]; total: number }
+      const body = payload as {
+        enabled: boolean
+        items: LocalDownloadInfo[]
+        total: number
+      }
       downloadsEnabled = body.enabled
       downloads = body.items
+      downloadsTotal = body.total ?? body.items.length
+      downloadsLoaded = true
     } catch {
       if (requestId === downloadsRequest) downloadsError = i18n.t('detail.downloads.error')
     } finally {
@@ -475,11 +503,64 @@
   function selectEpisode(episode: MovieSummary): void {
     selectedEpisode = episode
     activeTab = 'details'
+    onepisodechange?.(episode.id)
+  }
+
+  $effect(() => {
+    if (!open || !isSeries) return
+    const seriesId = movie.id
+    const controller = new AbortController()
+    seriesSizeBytes = null
+    seriesSizeLoading = true
+    fetch(`/api/v1/series/${encodeURIComponent(seriesId)}/size`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return null
+        const payload = (await response.json()) as { totalSizeBytes?: number | null }
+        return payload.totalSizeBytes ?? null
+      })
+      .then((size) => {
+        if (!controller.signal.aborted) seriesSizeBytes = size
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!controller.signal.aborted) seriesSizeLoading = false
+      })
+    return () => controller.abort()
+  })
+
+  $effect(() => {
+    if (!open || !isSeries) return
+    if (episodeId) {
+      const target = series?.episodes.find((episode) => episode.id === episodeId)
+      if (target && selectedEpisode?.id !== target.id) {
+        selectedEpisode = target
+        activeTab = 'details'
+      }
+      return
+    }
+    if (selectedEpisode) selectedEpisode = null
+  })
+
+  $effect(() => {
+    const season = selectedEpisode?.seasonNumber ?? null
+    if (season === null || openSeasons[season]) return
+    openSeasons = { ...openSeasons, [season]: true }
+  })
+
+  function seasonOpen(season: number): boolean {
+    return openSeasons[season] === true
+  }
+
+  function toggleSeason(season: number): void {
+    openSeasons = { ...openSeasons, [season]: !openSeasons[season] }
   }
 
   function backToSeries(): void {
     selectedEpisode = null
     activeTab = 'details'
+    onepisodechange?.(null)
   }
 
   function adjustEpisodeCount(itemId: string, delta: number): void {
@@ -539,6 +620,8 @@
     void movie.id
     activeTab = 'details'
     selectedEpisode = null
+    openSeasons = {}
+    seriesSizeBytes = null
     initialConfigApplied = false
     resetBatch()
   })
@@ -564,6 +647,43 @@
       detailRequest += 1
       stopPolling()
     }
+  })
+
+  $effect(() => {
+    if (!open) return
+    const query = seriesListMode
+      ? `seriesId=${encodeURIComponent(movie.id)}`
+      : `movieId=${encodeURIComponent(activeItem.id)}`
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const tick = async (): Promise<void> => {
+      if (cancelled) return
+      try {
+        const response = await fetch(`/api/v1/local-downloads/count?${query}`)
+        if (response.ok) {
+          const body = (await response.json()) as { total: number }
+          if (!cancelled && body.total !== downloadsTotal) {
+            downloadsTotal = body.total
+            downloadsLoaded = true
+            if (activeTab === 'downloads') void loadDownloads()
+          }
+        }
+      } catch {
+        // keep the last known count
+      }
+      if (!cancelled) timer = setTimeout(() => void tick(), 5000)
+    }
+    timer = setTimeout(() => void tick(), 5000)
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  })
+
+  $effect(() => {
+    const active = queue.jobs.length
+    if (active < previousQueueActive) void loadDownloads()
+    previousQueueActive = active
   })
 
   $effect(() => {
@@ -807,8 +927,9 @@
     const itemId = activeItem.id
     onstored?.(itemId)
     adjustEpisodeCount(itemId, 1)
+    if (downloadsLoaded) downloadsTotal += 1
     if (isSeries && movie.id !== itemId) onstored?.(movie.id)
-    if (activeTab === 'downloads') void loadDownloads()
+    void loadDownloads()
   }
 
   async function confirmCurrentCancel(): Promise<void> {
@@ -1120,6 +1241,13 @@
       sticky
     />
 
+    {#if isSeries && selectedEpisode}
+      <button type="button" class="back-button hover-shine modal-back" onclick={backToSeries}>
+        <span class="back-icon" aria-hidden="true">←</span>
+        {i18n.t('detail.series.back')}
+      </button>
+    {/if}
+
     {#if activeTab === 'details'}
       <div
         class="tab-panel"
@@ -1155,10 +1283,24 @@
                 <div class="muted">
                   {series.year ?? movie.year ?? i18n.t('movies.unknownYear')} ·
                   {i18n.t('detail.series.episodes', { count: series.episodes.length })}
-                  {#if series.totalSizeBytes}
-                    · {formatBytes(series.totalSizeBytes, i18n.locale)}
+                  {#if seriesSizeLoading}
+                    · <span class="size-pending" role="status">
+                      <span class="loading-dot" aria-hidden="true"></span>
+                      {i18n.t('detail.series.calculatingSize')}
+                    </span>
+                  {:else if seriesSizeBytes}
+                    · <span title={i18n.t('detail.badge.size')}>
+                      {formatBytes(seriesSizeBytes, i18n.locale)}
+                    </span>
                   {/if}
                 </div>
+                {#if series.unavailableEpisodes > 0}
+                  <p class="note warn small" style="margin-top: .45rem;">
+                    {i18n.t('detail.series.unavailable', {
+                      count: series.unavailableEpisodes,
+                    })}
+                  </p>
+                {/if}
                 {#if series.overview}<p class="overview">{series.overview}</p>{/if}
                 <div class="series-head-actions">
                   <a
@@ -1315,7 +1457,24 @@
                 {#each seasons as group (group.season)}
                   <section class="series-season" aria-label={group.label}>
                     <div class="season-head">
-                      <p class="section-title">{group.label}</p>
+                      <button
+                        type="button"
+                        class="season-toggle"
+                        aria-expanded={seasonOpen(group.season)}
+                        onclick={() => toggleSeason(group.season)}
+                      >
+                        <span
+                          class="season-chevron"
+                          class:open={seasonOpen(group.season)}
+                          aria-hidden="true"
+                        >
+                          ▸
+                        </span>
+                        <span class="section-title">{group.label}</span>
+                        <span class="muted small">
+                          {i18n.t('detail.series.episodes', { count: group.episodes.length })}
+                        </span>
+                      </button>
                       {#if batchMode}
                         <label class="season-check">
                           <input
@@ -1339,63 +1498,58 @@
                         </label>
                       {/if}
                     </div>
-                    <div class="episode-list">
-                      {#each group.episodes as episode (episode.id)}
-                        <div
-                          class={[
-                            'episode-row',
-                            { selected: batchMode && isBatchSelected(episode.id) },
-                          ]}
-                        >
-                          {#if batchMode}
-                            <input
-                              class="episode-check"
-                              type="checkbox"
-                              checked={isBatchSelected(episode.id)}
-                              aria-label={i18n.t('batch.job', {
-                                code: episodeCode(episode),
-                                title: episode.title,
-                              })}
-                              onchange={() => toggleBatchEpisode(episode.id)}
-                            />
-                          {/if}
-                          <button
-                            type="button"
-                            class="episode-open"
-                            aria-pressed={batchMode ? isBatchSelected(episode.id) : undefined}
-                            onclick={() =>
-                              batchMode ? toggleBatchEpisode(episode.id) : selectEpisode(episode)}
+                    {#if seasonOpen(group.season)}
+                      <div class="episode-list">
+                        {#each group.episodes as episode (episode.id)}
+                          <div
+                            class={[
+                              'episode-row',
+                              { selected: batchMode && isBatchSelected(episode.id) },
+                            ]}
                           >
-                            <span class="episode-code">{episodeCode(episode)}</span>
-                            <span class="episode-main">
-                              <span class="episode-title">{episode.title}</span>
-                              <span class="muted small">
-                                {formatDuration(episode.runtimeSeconds)}
+                            {#if batchMode}
+                              <input
+                                class="episode-check"
+                                type="checkbox"
+                                checked={isBatchSelected(episode.id)}
+                                aria-label={i18n.t('batch.job', {
+                                  code: episodeCode(episode),
+                                  title: episode.title,
+                                })}
+                                onchange={() => toggleBatchEpisode(episode.id)}
+                              />
+                            {/if}
+                            <button
+                              type="button"
+                              class="episode-open"
+                              aria-pressed={batchMode ? isBatchSelected(episode.id) : undefined}
+                              onclick={() =>
+                                batchMode ? toggleBatchEpisode(episode.id) : selectEpisode(episode)}
+                            >
+                              <span class="episode-code">{episodeCode(episode)}</span>
+                              <span class="episode-main">
+                                <span class="episode-title">{episode.title}</span>
+                                <span class="muted small">
+                                  {formatDuration(episode.runtimeSeconds)}
+                                </span>
                               </span>
-                            </span>
-                          </button>
-                          {#if episode.downloadCount > 0}
-                            <span class="badge good episode-downloads">
-                              <Icon name="download" size={12} />
-                              {episode.downloadCount}
-                            </span>
-                          {/if}
-                        </div>
-                      {/each}
-                    </div>
+                            </button>
+                            {#if episode.downloadCount > 0}
+                              <span class="badge good episode-downloads">
+                                <Icon name="download" size={12} />
+                                {episode.downloadCount}
+                              </span>
+                            {/if}
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
                   </section>
                 {/each}
               </div>
             {/if}
           {/if}
         {:else}
-          {#if isSeries && selectedEpisode}
-            <button type="button" class="back-button hover-shine" onclick={backToSeries}>
-              <span class="back-icon" aria-hidden="true">←</span>
-              {i18n.t('detail.series.back')}
-            </button>
-          {/if}
-
           <div class="detail-grid">
             {#if posterTag}
               <img
@@ -1902,6 +2056,11 @@
     margin-top: 0.6rem;
   }
 
+  .modal-back {
+    align-self: flex-start;
+    margin: 0.15rem 0 0.6rem;
+  }
+
   .track-action {
     padding: 0.25rem 0.5rem;
     border-radius: 8px;
@@ -1922,6 +2081,66 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.4rem;
+  }
+
+  .season-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    padding: 0.35rem 0.45rem;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+  }
+
+  .season-toggle:hover {
+    background: var(--surface-2);
+  }
+
+  .season-toggle .section-title {
+    margin: 0;
+  }
+
+  .season-chevron {
+    display: inline-block;
+    color: var(--muted);
+    transition: transform 140ms ease;
+  }
+
+  .season-chevron.open {
+    transform: rotate(90deg);
+  }
+
+  .size-pending {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .loading-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: var(--accent);
+    animation: size-pulse 900ms ease-in-out infinite alternate;
+  }
+
+  @keyframes size-pulse {
+    from {
+      opacity: 0.25;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loading-dot {
+      animation: none;
+    }
   }
 
   .season-check {

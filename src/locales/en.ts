@@ -140,6 +140,8 @@ export const en = {
   'detail.series.special': 'Specials',
   'detail.series.season': 'Season {season}',
   'detail.series.episodes': '{count} episodes',
+  'detail.series.calculatingSize': 'Calculating size…',
+  'detail.series.unavailable': '{count} episodes are not available on the server.',
   'detail.series.back': 'Back to episodes',
   'detail.series.loading': 'Loading episodes…',
   'detail.series.error': 'Could not load the series.',

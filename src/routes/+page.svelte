@@ -25,6 +25,8 @@
   let dialogOpen = $state(false)
   let modalError = $state<string | null>(null)
   let initialConfig = $state<DownloadConfig | null>(null)
+  let initialConfigForId = $state<string | null>(null)
+  let episodeId = $state<string | null>(null)
   let modalParam = $state<string | null>(page.url.searchParams.get('modal'))
   let fromParam = $state<string | null>(page.url.searchParams.get('from'))
   let closeTimer: ReturnType<typeof setTimeout> | null = null
@@ -135,7 +137,30 @@
     return item.config ?? null
   }
 
-  function showItem(item: MovieSummary, config: DownloadConfig | null = null): void {
+  function summaryFromSeries(detail: {
+    id: string
+    title: string
+    year: number | null
+    imageTag: string | null
+  }): MovieSummary {
+    return {
+      id: detail.id,
+      title: detail.title,
+      year: detail.year,
+      runtimeSeconds: null,
+      imageTag: detail.imageTag,
+      media: null,
+      downloadCount: 0,
+      kind: 'series',
+    }
+  }
+
+  function showItem(
+    item: MovieSummary,
+    config: DownloadConfig | null = null,
+    episode: string | null = null,
+    configFor: string | null = null
+  ): void {
     if (closeTimer) {
       clearTimeout(closeTimer)
       closeTimer = null
@@ -143,12 +168,16 @@
     modalError = null
     selectedItem = item
     initialConfig = config
+    initialConfigForId = configFor
+    episodeId = episode
     dialogOpen = true
   }
 
   function hideItem(): void {
     dialogOpen = false
     initialConfig = null
+    initialConfigForId = null
+    episodeId = null
     if (closeTimer) clearTimeout(closeTimer)
     closeTimer = setTimeout(() => {
       if (!dialogOpen) selectedItem = null
@@ -183,45 +212,38 @@
     })
   }
 
+  function handleEpisodeChange(id: string | null): void {
+    const root = selectedItem
+    if (!root) return
+    episodeId = id
+    initialConfig = null
+    initialConfigForId = null
+    const target = id ?? root.id
+    const url = modalUrl(target)
+    const current = `${locationUrl().pathname}${locationUrl().search}`
+    if (url === current) return
+    void goto(url, {
+      replace: id === null,
+      shallow: true,
+      reset: false,
+    })
+  }
+
   function reportModalError(message: string): void {
     modalError = message
     notifications.notify({ level: 'error', message })
   }
 
-  async function openFromUrl(id: string): Promise<void> {
-    const requestId = ++modalRequest
-    modalLoading = id
-    modalError = null
-    const local = displayedItems.find((item) => item.id === id)
-    if (local) {
-      modalLoading = null
-      showItem(local)
-      return
-    }
-    try {
-      const response = await fetch(`/api/v1/movies/${encodeURIComponent(id)}`)
-      const payload: unknown = await response.json()
-      if (requestId !== modalRequest) return
-      if (!response.ok) {
-        reportModalError(i18n.t('page.modalError'))
-        return
-      }
-      showItem(summaryFromDetail(payload as MovieDetail))
-    } catch {
-      if (requestId === modalRequest) reportModalError(i18n.t('page.modalError'))
-    } finally {
-      if (requestId === modalRequest) modalLoading = null
-    }
-  }
-
-  async function openFromDownload(id: string, from: string): Promise<void> {
+  async function openResolved(id: string, from: string | null): Promise<void> {
     const requestId = ++modalRequest
     modalLoading = id
     modalError = null
     try {
       const [movieResponse, configResponse] = await Promise.all([
         fetch(`/api/v1/movies/${encodeURIComponent(id)}`),
-        fetch(`/api/v1/local-downloads/${encodeURIComponent(from)}`).catch(() => null),
+        from
+          ? fetch(`/api/v1/local-downloads/${encodeURIComponent(from)}`).catch(() => null)
+          : Promise.resolve(null),
       ])
       const moviePayload: unknown = await movieResponse.json().catch(() => null)
       const configPayload = configResponse?.ok
@@ -232,14 +254,51 @@
         reportModalError(i18n.t('page.modalError'))
         return
       }
-      const config = downloadConfig(configPayload, id)
-      showItem(summaryFromDetail(moviePayload as MovieDetail), config)
-      if (!config) notifications.notify({ level: 'warn', message: i18n.t('config.unavailable') })
+
+      const detail = moviePayload as MovieDetail
+      let root = summaryFromDetail(detail)
+      let selectedEpisode: string | null = null
+      if (detail.kind === 'episode' && detail.seriesId) {
+        const seriesResponse = await fetch(`/api/v1/series/${encodeURIComponent(detail.seriesId)}`)
+        if (requestId !== modalRequest) return
+        if (!seriesResponse.ok) {
+          reportModalError(i18n.t('page.modalError'))
+          return
+        }
+        const seriesPayload = (await seriesResponse.json()) as {
+          id: string
+          title: string
+          year: number | null
+          imageTag: string | null
+        }
+        root = summaryFromSeries(seriesPayload)
+        selectedEpisode = id
+      }
+
+      const config = from ? downloadConfig(configPayload, id) : null
+      showItem(root, config, selectedEpisode, config ? id : null)
+      if (from && !config)
+        notifications.notify({ level: 'warn', message: i18n.t('config.unavailable') })
     } catch {
       if (requestId === modalRequest) reportModalError(i18n.t('page.modalError'))
     } finally {
       if (requestId === modalRequest) modalLoading = null
     }
+  }
+
+  async function openFromUrl(id: string): Promise<void> {
+    const local = displayedItems.find((item) => item.id === id)
+    if (local) {
+      modalRequest += 1
+      modalLoading = null
+      showItem(local)
+      return
+    }
+    await openResolved(id, null)
+  }
+
+  async function openFromDownload(id: string, from: string): Promise<void> {
+    await openResolved(id, from)
   }
 
   afterNavigate(() => {
@@ -252,27 +311,33 @@
     const modalId = modalParam
     const from = fromParam
     const key = modalKey(modalId, from)
-    if (key === appliedKey) return
-    appliedKey = key
     if (!modalId) {
+      appliedKey = key
       if (from) return
       modalRequest += 1
       modalLoading = null
+      episodeId = null
+      initialConfigForId = null
       if (dialogOpen) hideItem()
       return
     }
-    if (!from) {
-      if (selectedItem?.id === modalId) {
-        modalRequest += 1
-        modalLoading = null
-        showItem(selectedItem)
+
+    if (!from && selectedItem) {
+      if (modalId === selectedItem.id) {
+        appliedKey = key
+        if (selectedItem.kind === 'series' && episodeId !== null) episodeId = null
         return
       }
-      if (modalLoading === modalId) return
-      void openFromUrl(modalId)
-      return
+      if (selectedItem.kind === 'series' && modalId === episodeId) {
+        appliedKey = key
+        return
+      }
     }
-    void openFromDownload(modalId, from)
+
+    if (key === appliedKey) return
+    appliedKey = key
+    if (from) void openFromDownload(modalId, from)
+    else void openFromUrl(modalId)
   })
 
   $effect(() => {
@@ -461,6 +526,9 @@
     capabilities={data.capabilities}
     open={dialogOpen}
     {initialConfig}
+    {initialConfigForId}
+    {episodeId}
+    onepisodechange={handleEpisodeChange}
     onclose={closeItem}
     onstored={(itemId) => {
       extraDownloads = { ...extraDownloads, [itemId]: (extraDownloads[itemId] ?? 0) + 1 }

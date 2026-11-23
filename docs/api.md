@@ -19,32 +19,46 @@ OpenAPI 3.1: `GET /api/v1/openapi.json`. Human-readable page: `GET /api/v1/docs`
 
 ## Endpoints
 
-| Method | Path                                  | Description                                   |
-| ------ | ------------------------------------- | --------------------------------------------- |
-| GET    | `/health`                             | Configuration, ffmpeg, local store and uptime |
-| GET    | `/capabilities`                       | Containers, codecs, hardware, burn-in, limits |
-| GET    | `/movies?q=&limit=&offset=`           | List/search movies, series and home videos    |
-| GET    | `/movies/{id}`                        | Playable item details with sources and tracks |
-| GET    | `/series/{id}`                        | Series details with its episodes              |
-| GET    | `/artwork/{id}?w=160\|300\|600`       | Proxied poster                                |
-| POST   | `/downloads`                          | Create download                               |
-| GET    | `/downloads?state=&limit=`            | List active jobs or every retained job        |
-| POST   | `/downloads/batch`                    | Create several downloads with one config      |
-| GET    | `/downloads/{id}`                     | State and progress                            |
-| GET    | `/downloads/{id}/file`                | Final file; supports `Range`                  |
-| DELETE | `/downloads/{id}`                     | Cancel an active job                          |
-| GET    | `/local-downloads?movieId=&seriesId=` | List stored local downloads                   |
-| GET    | `/local-downloads/{key}`              | Stored download metadata and configuration    |
-| GET    | `/local-downloads/{key}/file`         | Download a stored result                      |
-| DELETE | `/local-downloads/{key}`              | Delete a stored result                        |
-| POST   | `/local-downloads/check`              | Check whether a configuration exists          |
-| GET    | `/presets?tag=`                       | List presets; repeatable tag filter (AND)     |
-| GET    | `/presets/{id}`                       | Get one preset                                |
-| GET    | `/logs?level=&limit=&offset=&date=`   | Read persisted server logs                    |
-| GET    | `/logs?download=1`                    | Download a JSONL log file                     |
-| DELETE | `/logs[?date=]`                       | Clear persisted logs                          |
-| GET    | `/settings`                           | Defaults and presets                          |
-| PUT    | `/settings`                           | Save global settings                          |
+| Method | Path                                        | Description                                   |
+| ------ | ------------------------------------------- | --------------------------------------------- |
+| GET    | `/health`                                   | Configuration, ffmpeg, local store and uptime |
+| GET    | `/capabilities`                             | Containers, codecs, hardware, burn-in, limits |
+| GET    | `/movies?q=&limit=&offset=`                 | Jellyfin native search with pagination        |
+| GET    | `/movies/{id}`                              | Playable item details with sources and tracks |
+| GET    | `/series/{id}`                              | Series details with available episodes        |
+| GET    | `/series/{id}/size`                         | Total size of the available episodes          |
+| GET    | `/artwork/{id}?w=160\|300\|600`             | Proxied poster                                |
+| POST   | `/downloads`                                | Create download                               |
+| GET    | `/downloads?state=&limit=`                  | List active jobs or every retained job        |
+| POST   | `/downloads/batch`                          | Create several downloads with one config      |
+| GET    | `/downloads/{id}`                           | State and progress                            |
+| GET    | `/downloads/{id}/file`                      | Final file; supports `Range`                  |
+| DELETE | `/downloads/{id}`                           | Cancel an active job                          |
+| GET    | `/local-downloads?movieId=&seriesId=`       | List stored local downloads                   |
+| GET    | `/local-downloads/count?movieId=&seriesId=` | Stored download count for an item/series      |
+| GET    | `/local-downloads/{key}`                    | Stored download metadata and configuration    |
+| GET    | `/local-downloads/{key}/file`               | Download a stored result                      |
+| DELETE | `/local-downloads/{key}`                    | Delete a stored result                        |
+| POST   | `/local-downloads/check`                    | Check whether a configuration exists          |
+| GET    | `/presets?tag=`                             | List presets; repeatable tag filter (AND)     |
+| GET    | `/presets/{id}`                             | Get one preset                                |
+| GET    | `/logs?level=&limit=&offset=&date=`         | Read persisted server logs                    |
+| GET    | `/logs?download=1`                          | Download a JSONL log file                     |
+| DELETE | `/logs[?date=]`                             | Clear persisted logs                          |
+| GET    | `/settings`                                 | Defaults and presets                          |
+| PUT    | `/settings`                                 | Save global settings                          |
+
+## Catalog search and series
+
+`GET /movies?q=` uses Jellyfin's native `SearchTerm` with pagination, so it
+returns results without downloading the whole catalog. Items do not include
+media sources; call `/movies/{id}` before creating a download.
+
+`GET /series/{id}` returns lightweight episodes (no media sources) and
+`unavailableEpisodes` for virtual/placeholder entries that are not on the
+server. Those entries are excluded from the list and cannot be downloaded.
+`GET /series/{id}/size` computes the total size of the available episodes and
+may take longer than the series call; the UI shows a loading state.
 
 ## Create a download
 
