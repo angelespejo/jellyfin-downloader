@@ -1,4 +1,4 @@
-import type { LogLevel } from './types.js'
+import type { LogEntry, LogLevel } from './types.js'
 
 export const LOG_LEVELS: readonly LogLevel[] = ['info', 'warn', 'error'] as const
 
@@ -50,4 +50,20 @@ export function safeLogEvent(value: unknown, fallback = 'app.event'): string {
   if (typeof value !== 'string') return fallback
   const cleaned = value.trim().toLowerCase()
   return /^[a-z0-9][a-z0-9._-]{0,80}$/.test(cleaned) ? cleaned : fallback
+}
+
+export interface LogPage {
+  entries: LogEntry[]
+  total: number
+}
+
+/** Slides a page out of a newest-first list after applying the level filter. */
+export function selectLogPage(
+  entries: readonly LogEntry[],
+  input: { level?: LogLevel | null; limit?: number; offset?: number }
+): LogPage {
+  const filtered = input.level ? entries.filter((entry) => entry.level === input.level) : entries
+  const limit = Math.max(1, Math.min(input.limit ?? 200, 1000))
+  const offset = Math.max(0, Math.floor(input.offset ?? 0))
+  return { entries: filtered.slice(offset, offset + limit), total: filtered.length }
 }

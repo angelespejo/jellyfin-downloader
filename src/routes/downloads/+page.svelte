@@ -8,17 +8,45 @@
   import EmptyState from '#lib/components/empty-state.svelte'
   import ConfirmDialog from '#lib/components/confirm-dialog.svelte'
   import DownloadConfigBadge from '#lib/ui/download-config-badge.svelte'
+  import DownloadQueue from '#lib/ui/download-queue.svelte'
+  import { getDownloadQueue } from '#core/download-queue.svelte.js'
 
   let { data }: { data: PageData } = $props()
   const i18n = getI18n()
   const notifications = getNotifications()
+  const queue = getDownloadQueue()
 
   // svelte-ignore state_referenced_locally
   let items = $state<LocalDownloadInfo[]>(data.items)
+  // svelte-ignore state_referenced_locally
+  let storage = $state(data.storage)
   let message = $state<string | null>(null)
   let error = $state<string | null>(null)
   let deleting = $state<string | null>(null)
   let pendingDelete = $state<LocalDownloadInfo | null>(null)
+  let previousActive = 0
+
+  async function refreshStored(): Promise<void> {
+    try {
+      const response = await fetch('/api/v1/local-downloads')
+      if (!response.ok) return
+      const payload = (await response.json()) as { enabled: boolean; items: LocalDownloadInfo[] }
+      items = payload.items ?? []
+      storage = {
+        enabled: payload.enabled,
+        usedBytes: items.reduce((total, item) => total + item.sizeBytes, 0),
+        objects: items.length,
+      }
+    } catch {
+      // keep the current list when the refresh fails
+    }
+  }
+
+  $effect(() => {
+    const active = queue.jobs.length
+    if (active < previousActive) void refreshStored()
+    previousActive = active
+  })
 
   async function confirmDelete(): Promise<void> {
     const item = pendingDelete
@@ -37,6 +65,11 @@
         return
       }
       items = items.filter((candidate) => candidate.key !== item.key)
+      storage = {
+        ...storage,
+        usedBytes: Math.max(0, storage.usedBytes - item.sizeBytes),
+        objects: Math.max(0, storage.objects - 1),
+      }
       message = i18n.t('downloads.deleted')
       notifications.notify({ level: 'success', message })
     } catch {
@@ -55,10 +88,10 @@
     <p>{i18n.t('downloads.subtitle')}</p>
   </div>
   <div class="status-row">
-    <span class={['badge', { good: data.storage.enabled, warn: !data.storage.enabled }]}>
-      {data.storage.enabled
+    <span class={['badge', { good: storage.enabled, warn: !storage.enabled }]}>
+      {storage.enabled
         ? i18n.t('settings.storageOn', {
-            size: formatBytes(data.storage.usedBytes, i18n.locale),
+            size: formatBytes(storage.usedBytes, i18n.locale),
           })
         : i18n.t('settings.storageOff')}
     </span>
@@ -73,21 +106,35 @@
 {#if error}<div class="error-box" role="alert">{error}</div>{/if}
 {#if message}<div class="success-box" role="status">{message}</div>{/if}
 
-{#if !data.storage.enabled}
+<section class="queue-section" aria-labelledby="queue-title">
+  {#if queue.jobs.length > 0}
+    <div class="search-meta">
+      <h2 id="queue-title" class="section-title" style="margin: 0;">
+        {i18n.t('downloads.active')}
+      </h2>
+      <span class="muted small" aria-live="polite">
+        {i18n.t('queue.activeCount', { count: queue.jobs.length })}
+      </span>
+    </div>
+  {/if}
+  <DownloadQueue hideEmpty />
+</section>
+
+{#if !storage.enabled}
   <EmptyState
     icon="folder"
     title={i18n.t('downloads.disabled')}
     description={i18n.t('downloads.disabledHint')}
     variant="empty"
   />
-{:else if items.length === 0}
+{:else if items.length === 0 && queue.jobs.length === 0}
   <EmptyState
     icon="download"
     title={i18n.t('downloads.empty')}
     description={i18n.t('downloads.emptyHint')}
     variant="empty"
   />
-{:else}
+{:else if items.length > 0}
   <div class="search-meta">
     <span class="muted small">{i18n.t('downloads.count', { count: items.length })}</span>
   </div>
@@ -175,6 +222,10 @@
 />
 
 <style>
+  .queue-section {
+    margin-bottom: 1.25rem;
+  }
+
   .download-title {
     color: inherit;
   }

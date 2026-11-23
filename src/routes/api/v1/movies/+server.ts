@@ -7,7 +7,7 @@ import { getLocalDownloadsStore } from '#api/_shared/local-downloads.js'
 
 export const GET: RequestHandler = apiRoute(async ({ url }) => {
   const query = normalizeSearch(url.searchParams.get('q') ?? '')
-  const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit') ?? 100) || 100))
+  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? 100) || 100))
   const offset = Math.max(0, Number(url.searchParams.get('offset') ?? 0) || 0)
 
   const [all, counts] = await Promise.all([
@@ -18,7 +18,7 @@ export const GET: RequestHandler = apiRoute(async ({ url }) => {
   ])
   const filtered = query
     ? all.filter((item) => {
-        const haystack = `${item.Name} ${item.ProductionYear ?? ''}`
+        const haystack = `${item.Name} ${item.SeriesName ?? ''} ${item.ProductionYear ?? ''}`
         return normalizeSearch(haystack).includes(query)
       })
     : all

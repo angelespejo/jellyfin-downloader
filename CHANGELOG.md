@@ -14,6 +14,15 @@ All notable changes are documented here. The format follows
   restored jobs, Jellyfin connectivity, ffmpeg/hardware and the missing
   authentication warning.
 - `JELLYFIN_SERVER` is accepted as a deprecated alias of `JELLYFIN_URL`.
+- Active download queue: card badges, a queue tab in the media dialog, a
+  **Downloading now** section on the downloads page and cancel actions.
+- Infinite scroll for the library search and the persisted logs, with visible
+  **Load more** fallbacks.
+- Select/deselect-all controls for audio and subtitles, plus a subtitle counter.
+- Collapsible output, audio and subtitle sections in the media dialog.
+- Selected-version weight in the dialog, series total weight, and the year in the
+  dialog title.
+- Tooltips on the media badges.
 - `docs/docker-compose.md` with progressive examples: minimal, persistent, pinned
   version, reverse proxy, local downloads store, GPU passthrough and a full stack
   with Jellyfin.
@@ -27,6 +36,8 @@ All notable changes are documented here. The format follows
   first request.
 - The security note about missing authentication is no longer rendered in
   Settings; it is logged on startup.
+- The library page no longer loads the whole catalog during SSR; search results
+  are paginated on the server as the user scrolls.
 - The bundled `docker-compose.yml` pulls the published
   `ghcr.io/angelespejo/jellyfin-downloader` image instead of building locally.
 - The README documents the Docker installation step by step and links to the

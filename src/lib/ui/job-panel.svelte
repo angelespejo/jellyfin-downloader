@@ -2,13 +2,18 @@
   import type { DownloadJobStatus } from '#lib/types.js'
   import { formatBytes } from '#lib/format.js'
   import { getI18n } from '#core/i18n.svelte.js'
+  import Icon from '#lib/components/icon.svelte'
 
   let {
     job,
     error = null,
+    oncancel,
+    cancelling = false,
   }: {
     job: DownloadJobStatus | null
     error?: string | null
+    oncancel?: () => void
+    cancelling?: boolean
   } = $props()
 
   const i18n = getI18n()
@@ -38,11 +43,24 @@
           {i18n.stage(job.stage)}
         {/if}
       </strong>
-      {#if job.cached}
-        <span class="badge good">{i18n.t('job.cached')}</span>
-      {:else if job.stored}
-        <span class="badge accent">{i18n.t('job.stored')}</span>
-      {/if}
+      <span class="job-head-actions">
+        {#if job.cached}
+          <span class="badge good">{i18n.t('job.cached')}</span>
+        {:else if job.stored}
+          <span class="badge accent">{i18n.t('job.stored')}</span>
+        {/if}
+        {#if oncancel && (job.state === 'queued' || job.state === 'running')}
+          <button
+            type="button"
+            class="danger job-cancel hover-shine"
+            disabled={cancelling}
+            onclick={oncancel}
+          >
+            <Icon name="close" size={13} />
+            {i18n.t('queue.cancel')}
+          </button>
+        {/if}
+      </span>
     </div>
 
     {#if job.state === 'queued'}
@@ -77,3 +95,22 @@
     {/if}
   </div>
 {/if}
+
+<style>
+  .job-head-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .job-cancel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+</style>

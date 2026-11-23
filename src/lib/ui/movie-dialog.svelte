@@ -23,12 +23,15 @@
   import Icon from '#lib/components/icon.svelte'
   import Tabs from '#lib/components/tabs.svelte'
   import ConfirmDialog from '#lib/components/confirm-dialog.svelte'
+  import CollapsibleSection from '#lib/components/collapsible-section.svelte'
   import JobPanel from '#lib/ui/job-panel.svelte'
   import OutputSettings from '#lib/ui/output-settings.svelte'
   import BatchPanel from '#lib/ui/batch-panel.svelte'
+  import DownloadQueue from '#lib/ui/download-queue.svelte'
   import DownloadConfigBadge from '#lib/ui/download-config-badge.svelte'
   import { getI18n } from '#core/i18n.svelte.js'
   import { getNotifications } from '#core/notifications.svelte.js'
+  import { getDownloadQueue } from '#core/download-queue.svelte.js'
 
   let {
     movie,
@@ -52,6 +55,7 @@
 
   const i18n = getI18n()
   const notifications = getNotifications()
+  const queue = getDownloadQueue()
   let detail = $state<MovieDetail | null>(null)
   let detailLoading = $state(true)
   let detailError = $state<string | null>(null)
@@ -85,6 +89,14 @@
   let downloadsRequest = 0
   let deleting = $state(false)
   let pendingDelete = $state<LocalDownloadInfo | null>(null)
+  let pendingJobCancel = $state<DownloadJobStatus | null>(null)
+  let pendingBatchCancel = $state<{
+    movieId: string
+    title: string
+    job: DownloadJobStatus
+  } | null>(null)
+  let cancellingJob = $state(false)
+  let sectionOpen = $state({ output: true, audio: true, subtitles: true })
 
   // Local fallback for items whose summary is not re-fetched after a store/delete.
   let countAdjustments = $state<Record<string, number>>({})
@@ -131,12 +143,15 @@
     }
     return activeItem.downloadCount + (countAdjustments[activeItem.id] ?? 0)
   })
-  const dialogTitle = $derived(
-    selectedEpisode ? `${movie.title} · ${episodeCode(selectedEpisode)}` : movie.title
-  )
+  const dialogTitle = $derived.by(() => {
+    const base = selectedEpisode ? `${movie.title} · ${episodeCode(selectedEpisode)}` : movie.title
+    const year = detail?.year ?? activeItem.year ?? movie.year
+    return year ? `${base} (${year})` : base
+  })
   const tabItems = $derived<TabItem[]>([
     { id: 'details', label: i18n.t('detail.tab.details') },
     { id: 'downloads', label: i18n.t('detail.tab.downloadsCount', { count: downloadsCount }) },
+    { id: 'queue', label: i18n.t('detail.tab.queueCount', { count: queue.jobs.length }) },
   ])
   const posterId = $derived(
     seriesListMode ? movie.id : activeItem.imageTag ? activeItem.id : movie.id
@@ -198,6 +213,19 @@
       : (activeItem.media?.audioLanguages ?? [])
   )
   const subtitleCount = $derived(source?.subtitles.length ?? activeItem.media?.subtitleCount ?? 0)
+  const allAudioSelected = $derived.by(() => {
+    if (!source || source.audio.length === 0) return false
+    return selectedAudio.length === source.audio.length
+  })
+  const allSubtitlesSelected = $derived.by(() => {
+    if (!source || source.subtitles.length === 0) return false
+    return selectedSubtitles.length === source.subtitles.length
+  })
+
+  $effect(() => {
+    queue.start()
+    return () => queue.stop()
+  })
 
   function episodeCode(item: MovieSummary): string {
     const season = item.seasonNumber ?? 0
@@ -574,6 +602,27 @@
       : selectedSubtitles.filter((value) => value !== index)
   }
 
+  function selectAllAudio(): void {
+    presetId = ''
+    selectedAudio = (source?.audio ?? []).map((track) => track.index)
+  }
+
+  function clearAudioSelection(): void {
+    presetId = ''
+    selectedAudio = []
+  }
+
+  function selectAllSubtitles(): void {
+    if (!source || options.subtitleStrategy === 'burn') return
+    presetId = ''
+    selectedSubtitles = source.subtitles.map((subtitle) => subtitle.index)
+  }
+
+  function clearSubtitleSelection(): void {
+    presetId = ''
+    selectedSubtitles = []
+  }
+
   function setSubtitleOverride(index: number, value: string): void {
     presetId = ''
     if (value === 'auto') {
@@ -700,6 +749,9 @@
         job = (await response.json()) as DownloadJobStatus
         notifyJobState(job)
         notifyStored()
+        if (job.state === 'ready' || job.state === 'failed' || job.state === 'cancelled') {
+          void queue.refresh()
+        }
         if (job.state === 'queued' || job.state === 'running') {
           pollTimer = setTimeout(() => void pollJob(id), 1000)
           return
@@ -734,6 +786,7 @@
       job = payload as DownloadJobStatus
       notifyJobState(job)
       notifyStored()
+      void queue.refresh()
       if (job.state !== 'ready') void pollJob(job.id)
       else cache = cache ? { ...cache, hit: true } : cache
     } catch {
@@ -752,6 +805,53 @@
     adjustEpisodeCount(itemId, 1)
     if (isSeries && movie.id !== itemId) onstored?.(movie.id)
     if (activeTab === 'downloads') void loadDownloads()
+  }
+
+  async function confirmCurrentCancel(): Promise<void> {
+    const target = pendingJobCancel
+    if (!target) return
+    cancellingJob = true
+    const result = await queue.cancelJob(target.id)
+    cancellingJob = false
+    pendingJobCancel = null
+    if (!result.ok) {
+      notifications.notify({
+        level: 'error',
+        message: i18n.error(result.code, i18n.t('queue.cancelError')),
+      })
+      return
+    }
+    if (result.job) job = result.job
+    notifications.notify({
+      level: 'success',
+      message: i18n.t('queue.cancelled', { name: target.title }),
+    })
+  }
+
+  async function confirmBatchCancel(): Promise<void> {
+    const target = pendingBatchCancel
+    if (!target) return
+    cancellingJob = true
+    const result = await queue.cancelJob(target.job.id)
+    cancellingJob = false
+    pendingBatchCancel = null
+    if (!result.ok) {
+      notifications.notify({
+        level: 'error',
+        message: i18n.error(result.code, i18n.t('queue.cancelError')),
+      })
+      return
+    }
+    if (result.job) {
+      const updated = result.job
+      batchJobs = batchJobs.map((item) =>
+        item.job.id === updated.id ? { ...item, job: updated } : item
+      )
+    }
+    notifications.notify({
+      level: 'success',
+      message: i18n.t('queue.cancelled', { name: target.title }),
+    })
   }
 
   function stopBatchPolling(): void {
@@ -925,6 +1025,7 @@
       return
     }
     stopBatchPolling()
+    void queue.refresh()
     void loadDownloads()
   }
 
@@ -974,6 +1075,7 @@
         const movieId = createdIds[index] ?? ids[index] ?? ''
         return { movieId, title: batchJobTitle(movieId), job: status }
       })
+      void queue.refresh()
       for (const item of batchJobs) handleBatchJob(item)
       if (result.jobs.length > 0) {
         notifications.notify({
@@ -1049,6 +1151,9 @@
                 <div class="muted">
                   {series.year ?? movie.year ?? i18n.t('movies.unknownYear')} ·
                   {i18n.t('detail.series.episodes', { count: series.episodes.length })}
+                  {#if series.totalSizeBytes}
+                    · {formatBytes(series.totalSizeBytes, i18n.locale)}
+                  {/if}
                 </div>
                 {#if series.overview}<p class="overview">{series.overview}</p>{/if}
                 <div class="series-head-actions">
@@ -1165,7 +1270,7 @@
                     <div class="error-box" role="alert">{batchError}</div>
                   {/if}
 
-                  <BatchPanel items={batchJobs} />
+                  <BatchPanel items={batchJobs} oncancel={(item) => (pendingBatchCancel = item)} />
                 </div>
               </div>
             {:else}
@@ -1297,21 +1402,30 @@
               <div class="muted">
                 {detail?.year ?? activeItem.year ?? i18n.t('movies.unknownYear')} ·
                 {formatDuration(detail?.runtimeSeconds ?? activeItem.runtimeSeconds)}
+                {#if source?.sizeBytes}
+                  · <span title={i18n.t('detail.badge.size')}>
+                    {formatBytes(source.sizeBytes, i18n.locale)}
+                  </span>
+                {/if}
               </div>
               <div class="movie-badges" style="margin-top: .45rem;">
-                {#if resolution}<span class="badge accent">{resolution}p</span>{/if}
-                <span class="badge">
+                {#if resolution}
+                  <span class="badge accent" title={i18n.t('detail.badge.resolution')}>
+                    {resolution}p
+                  </span>
+                {/if}
+                <span class="badge" title={i18n.t('detail.badge.container')}>
                   {(source?.container ?? activeItem.media?.container ?? '—').toUpperCase()}
                 </span>
                 {#if audioLanguages.length}
-                  <span class="badge">
+                  <span class="badge" title={i18n.t('detail.badge.audio')}>
                     {audioLanguages
                       .map((language) => formatLanguage(language, i18n.locale))
                       .join(' · ')}
                   </span>
                 {/if}
                 {#if subtitleCount > 0}
-                  <span class="badge">
+                  <span class="badge" title={i18n.t('detail.badge.subtitles')}>
                     {i18n.t('movies.subtitleCount', { count: subtitleCount })}
                   </span>
                 {/if}
@@ -1354,9 +1468,12 @@
               <strong>{i18n.t('detail.selectTitle')}</strong>{i18n.t('detail.selectHint')}
             </div>
           {:else}
-            <div class="section">
-              <div class="panel-head" style="padding: 0 0 .75rem; border: 0;">
-                <p class="section-title" style="margin: 0;">{i18n.t('options.title')}</p>
+            <CollapsibleSection
+              id="output"
+              title={i18n.t('options.title')}
+              bind:open={sectionOpen.output}
+            >
+              {#snippet actions()}
                 <select
                   aria-label={i18n.t('options.preset')}
                   value={presetId}
@@ -1368,7 +1485,7 @@
                     <option value={preset.id}>{preset.name}</option>
                   {/each}
                 </select>
-              </div>
+              {/snippet}
               <OutputSettings
                 bind:options
                 {capabilities}
@@ -1382,15 +1499,34 @@
                   }
                 }}
               />
-            </div>
+            </CollapsibleSection>
 
-            <div class="section">
-              <p class="section-title">
-                {i18n.t('audio.title', {
-                  selected: selectedAudio.length,
-                  total: source.audio.length,
-                })}
-              </p>
+            <CollapsibleSection
+              id="audio"
+              title={i18n.t('audio.title', {
+                selected: selectedAudio.length,
+                total: source.audio.length,
+              })}
+              bind:open={sectionOpen.audio}
+            >
+              {#snippet actions()}
+                <button
+                  type="button"
+                  class="ghost hover-shine track-action"
+                  disabled={source.audio.length === 0 || allAudioSelected}
+                  onclick={selectAllAudio}
+                >
+                  {i18n.t('detail.tracks.selectAll')}
+                </button>
+                <button
+                  type="button"
+                  class="ghost hover-shine track-action"
+                  disabled={selectedAudio.length === 0}
+                  onclick={clearAudioSelection}
+                >
+                  {i18n.t('detail.tracks.clearSelection')}
+                </button>
+              {/snippet}
               {#if source.audio.length === 0}
                 <p class="muted small">{i18n.t('audio.empty')}</p>
               {:else}
@@ -1425,10 +1561,38 @@
                   {/each}
                 </div>
               {/if}
-            </div>
+            </CollapsibleSection>
 
-            <div class="section">
-              <p class="section-title">{i18n.t('subtitles.title')}</p>
+            <CollapsibleSection
+              id="subtitles"
+              title={i18n.t('subtitles.title', {
+                selected: selectedSubtitles.length,
+                total: source.subtitles.length,
+              })}
+              bind:open={sectionOpen.subtitles}
+            >
+              {#snippet actions()}
+                {#if source.subtitles.length > 0 && options.subtitleStrategy !== 'none'}
+                  {#if options.subtitleStrategy !== 'burn'}
+                    <button
+                      type="button"
+                      class="ghost hover-shine track-action"
+                      disabled={allSubtitlesSelected}
+                      onclick={selectAllSubtitles}
+                    >
+                      {i18n.t('detail.tracks.selectAll')}
+                    </button>
+                  {/if}
+                  <button
+                    type="button"
+                    class="ghost hover-shine track-action"
+                    disabled={selectedSubtitles.length === 0}
+                    onclick={clearSubtitleSelection}
+                  >
+                    {i18n.t('detail.tracks.clearSelection')}
+                  </button>
+                {/if}
+              {/snippet}
               {#if options.subtitleStrategy === 'burn'}
                 <p class="note warn small" style="margin-bottom: .6rem;">
                   {i18n.t('subtitles.burnHint')}
@@ -1512,7 +1676,7 @@
                   {/each}
                 </div>
               {/if}
-            </div>
+            </CollapsibleSection>
 
             <div class="section">
               <p class="section-title">{i18n.t('result.output')}</p>
@@ -1561,12 +1725,17 @@
                 </span>
               </div>
 
-              <JobPanel {job} error={jobError} />
+              <JobPanel
+                {job}
+                error={jobError}
+                cancelling={cancellingJob}
+                oncancel={() => (pendingJobCancel = job)}
+              />
             </div>
           {/if}
         {/if}
       </div>
-    {:else}
+    {:else if activeTab === 'downloads'}
       <div
         class="tab-panel"
         id="movie-detail-panel-downloads"
@@ -1647,6 +1816,20 @@
           {/if}
         </div>
       </div>
+    {:else}
+      <div
+        class="tab-panel"
+        id="movie-detail-panel-queue"
+        role="tabpanel"
+        aria-labelledby="movie-detail-tab-queue"
+      >
+        <div class="dialog-downloads">
+          <div class="downloads-head">
+            <p class="section-title" style="margin: 0;">{i18n.t('detail.tab.queue')}</p>
+          </div>
+          <DownloadQueue compact />
+        </div>
+      </div>
     {/if}
   </div>
 </ModalShell>
@@ -1661,7 +1844,34 @@
   oncancel={() => (pendingDelete = null)}
 />
 
+<ConfirmDialog
+  open={pendingJobCancel !== null}
+  title={i18n.t('queue.cancelTitle')}
+  message={i18n.t('queue.cancelMessage', { name: pendingJobCancel?.title ?? '' })}
+  confirmLabel={i18n.t('queue.cancel')}
+  busy={cancellingJob}
+  onconfirm={() => void confirmCurrentCancel()}
+  oncancel={() => (pendingJobCancel = null)}
+/>
+
+<ConfirmDialog
+  open={pendingBatchCancel !== null}
+  title={i18n.t('queue.cancelTitle')}
+  message={i18n.t('queue.cancelMessage', { name: pendingBatchCancel?.title ?? '' })}
+  confirmLabel={i18n.t('queue.cancel')}
+  busy={cancellingJob}
+  onconfirm={() => void confirmBatchCancel()}
+  oncancel={() => (pendingBatchCancel = null)}
+/>
+
 <style>
+  .track-action {
+    padding: 0.25rem 0.5rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
   .series-head-actions {
     display: flex;
     flex-wrap: wrap;

@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types'
   import type { DownloadConfig, LocalDownloadInfo, MovieDetail, MovieSummary } from '#lib/types.js'
-  import { normalizeSearch } from '#lib/format.js'
   import { page } from '$app/state'
   import { afterNavigate, goto } from '$app/navigation'
   import MovieItem from '#lib/ui/movie-item/index.svelte'
@@ -10,10 +9,15 @@
   import EmptyState from '#lib/components/empty-state.svelte'
   import { getI18n } from '#core/i18n.svelte.js'
   import { getNotifications } from '#core/notifications.svelte.js'
+  import { getDownloadQueue } from '#core/download-queue.svelte.js'
+  import { infiniteScroll } from '#lib/actions/infinite-scroll.js'
 
   let { data }: { data: PageData } = $props()
   const i18n = getI18n()
   const notifications = getNotifications()
+  const queue = getDownloadQueue()
+
+  const PAGE_SIZE = 48
 
   let query = $state(page.url.searchParams.get('q') ?? '')
   let selectedItem = $state<MovieSummary | null>(null)
@@ -28,22 +32,54 @@
   let modalLoading: string | null = null
   let appliedKey: string | null = null
 
-  const items = $derived(
-    data.items.map((item) => {
+  let results = $state<MovieSummary[]>([])
+  let total = $state(0)
+  let searchOffset = $state(0)
+  let searchLoading = $state(false)
+  let searchLoadingMore = $state(false)
+  let searchError = $state(false)
+  let searchVersion = 0
+  let searchController: AbortController | null = null
+
+  const hasQuery = $derived(query.trim().length > 0)
+  const hasMore = $derived(results.length < total)
+  const displayedItems = $derived(
+    results.map((item) => {
       const extra = extraDownloads[item.id] ?? 0
       return extra ? { ...item, downloadCount: Math.max(0, item.downloadCount + extra) } : item
     })
   )
 
-  const hasQuery = $derived(normalizeSearch(query).length > 0)
-  const filteredItems = $derived.by(() => {
-    if (!hasQuery) return []
-    const normalized = normalizeSearch(query)
-    return items.filter((item) =>
-      normalizeSearch(`${item.title} ${item.year ?? ''} ${item.seriesName ?? ''}`).includes(
-        normalized
-      )
-    )
+  const queueBadges = $derived.by(() => {
+    const byMovie = new Map<string, { queued: number; running: number }>()
+    const bySeries = new Map<string, { queued: number; running: number }>()
+    for (const job of queue.jobs) {
+      const target = job.seriesId ? bySeries : byMovie
+      const key = job.seriesId ?? job.movieId
+      const counts = target.get(key) ?? { queued: 0, running: 0 }
+      if (job.state === 'running') counts.running += 1
+      else counts.queued += 1
+      target.set(key, counts)
+    }
+    return { byMovie, bySeries }
+  })
+
+  function queueBadge(item: MovieSummary): {
+    state: 'queued' | 'running' | 'mixed'
+    count: number
+  } | null {
+    const counts =
+      item.kind === 'series' ? queueBadges.bySeries.get(item.id) : queueBadges.byMovie.get(item.id)
+    if (!counts) return null
+    const count = counts.queued + counts.running
+    if (count === 0) return null
+    if (counts.running > 0 && counts.queued > 0) return { state: 'mixed', count }
+    return { state: counts.running > 0 ? 'running' : 'queued', count }
+  }
+
+  $effect(() => {
+    queue.start()
+    return () => queue.stop()
   })
 
   function summaryFromDetail(detail: MovieDetail): MovieSummary {
@@ -62,6 +98,7 @@
             videoCodec: source.video[0]?.codec ?? null,
             audioLanguages: [...new Set(source.audio.map((track) => track.language ?? 'und'))],
             subtitleCount: source.subtitles.length,
+            sizeBytes: source.sizeBytes,
           }
         : null,
       downloadCount: 0,
@@ -154,7 +191,7 @@
     const requestId = ++modalRequest
     modalLoading = id
     modalError = null
-    const local = items.find((item) => item.id === id)
+    const local = displayedItems.find((item) => item.id === id)
     if (local) {
       modalLoading = null
       showItem(local)
@@ -186,7 +223,7 @@
         fetch(`/api/v1/local-downloads/${encodeURIComponent(from)}`).catch(() => null),
       ])
       const moviePayload: unknown = await movieResponse.json().catch(() => null)
-      const configPayload: unknown = configResponse?.ok
+      const configPayload = configResponse?.ok
         ? await configResponse.json().catch(() => null)
         : null
       if (requestId !== modalRequest) return
@@ -253,6 +290,76 @@
     }, 150)
     return () => clearTimeout(timer)
   })
+
+  function mergeItems(current: MovieSummary[], page: MovieSummary[]): MovieSummary[] {
+    const seen = new Set(current.map((item) => item.id))
+    return [...current, ...page.filter((item) => !seen.has(item.id))]
+  }
+
+  async function searchPage(offset: number, append: boolean): Promise<void> {
+    const value = query.trim()
+    if (!value) return
+    const version = ++searchVersion
+    searchController?.abort()
+    const controller = new AbortController()
+    searchController = controller
+    if (append) searchLoadingMore = true
+    else searchLoading = true
+    searchError = false
+    try {
+      const params = new URLSearchParams({
+        q: value,
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+      })
+      const response = await fetch(`/api/v1/movies?${params}`, { signal: controller.signal })
+      if (!response.ok) throw new Error('search failed')
+      const payload = (await response.json()) as { items: MovieSummary[]; total: number }
+      if (version !== searchVersion) return
+      const items = payload.items ?? []
+      results = append ? mergeItems(results, items) : items
+      total = payload.total ?? results.length
+      searchOffset = offset + items.length
+    } catch (error) {
+      if (controller.signal.aborted) return
+      if (version === searchVersion) searchError = true
+    } finally {
+      if (version === searchVersion) {
+        searchLoading = false
+        searchLoadingMore = false
+      }
+    }
+  }
+
+  function loadMore(): void {
+    if (searchLoading || searchLoadingMore || !hasMore) return
+    void searchPage(searchOffset, true)
+  }
+
+  function retrySearch(): void {
+    results = []
+    total = 0
+    searchOffset = 0
+    void searchPage(0, false)
+  }
+
+  $effect(() => {
+    const value = query.trim()
+    ++searchVersion
+    searchController?.abort()
+    searchController = null
+    results = []
+    total = 0
+    searchOffset = 0
+    searchError = false
+    if (!value) {
+      searchLoading = false
+      searchLoadingMore = false
+      return
+    }
+    const timer = setTimeout(() => void searchPage(0, false), 200)
+    return () => clearTimeout(timer)
+  })
 </script>
 
 <div class="hero">
@@ -262,9 +369,6 @@
   </div>
 </div>
 
-{#if data.loadError}
-  <div class="error-box" role="alert">{i18n.t('page.loadError')}</div>
-{/if}
 {#if data.settingsWarning}
   <div class="note warn" role="status">{i18n.t('page.settingsWarning')}</div>
 {/if}
@@ -286,7 +390,7 @@
   {#if hasQuery}
     <div class="search-meta">
       <span class="muted small" aria-live="polite">
-        {i18n.t('movies.count', { count: filteredItems.length })}
+        {i18n.t('movies.count', { count: total })}
       </span>
     </div>
   {/if}
@@ -298,7 +402,16 @@
       description={i18n.t('movies.startSearchHint')}
       variant="empty"
     />
-  {:else if filteredItems.length === 0}
+  {:else if searchLoading && displayedItems.length === 0}
+    <div class="note" role="status">{i18n.t('common.loading')}</div>
+  {:else if searchError && displayedItems.length === 0}
+    <div class="error-box" role="alert">
+      {i18n.t('movies.searchError')}
+      <button type="button" class="ghost hover-shine" onclick={retrySearch}>
+        {i18n.t('common.retry')}
+      </button>
+    </div>
+  {:else if displayedItems.length === 0}
     <EmptyState
       icon="search"
       title={i18n.t('movies.emptyTitle')}
@@ -306,11 +419,37 @@
       variant="no-results"
     />
   {:else}
-    <div class="movie-grid">
-      {#each filteredItems as item (item.id)}
-        <MovieItem movie={item} selected={selectedItem?.id === item.id} onselect={openItem} />
+    {#if searchError}
+      <div class="note warn" role="alert">{i18n.t('movies.searchError')}</div>
+    {/if}
+    <div class="movie-grid" aria-busy={searchLoading || searchLoadingMore}>
+      {#each displayedItems as item (item.id)}
+        <MovieItem
+          movie={item}
+          selected={selectedItem?.id === item.id}
+          queue={queueBadge(item)}
+          onselect={openItem}
+        />
       {/each}
     </div>
+    {#if hasMore}
+      <div
+        class="load-more"
+        use:infiniteScroll={{
+          enabled: hasMore && !searchLoading && !searchLoadingMore,
+          load: loadMore,
+        }}
+      >
+        <button
+          type="button"
+          class="ghost hover-shine"
+          disabled={searchLoadingMore}
+          onclick={loadMore}
+        >
+          {searchLoadingMore ? i18n.t('common.loadingMore') : i18n.t('common.loadMore')}
+        </button>
+      </div>
+    {/if}
   {/if}
 </section>
 
@@ -330,3 +469,11 @@
     }}
   />
 {/if}
+
+<style>
+  .load-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 1.25rem;
+  }
+</style>

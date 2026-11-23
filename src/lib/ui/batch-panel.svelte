@@ -5,8 +5,10 @@
 
   let {
     items,
+    oncancel,
   }: {
     items: { movieId: string; title: string; job: DownloadJobStatus }[]
+    oncancel?: (item: { movieId: string; title: string; job: DownloadJobStatus }) => void
   } = $props()
 
   const i18n = getI18n()
@@ -69,6 +71,17 @@
             {i18n.t('batch.download')}
           </a>
         {/if}
+
+        {#if oncancel && (item.job.state === 'queued' || item.job.state === 'running')}
+          <button
+            type="button"
+            class="danger batch-cancel hover-shine"
+            onclick={() => oncancel?.(item)}
+          >
+            <Icon name="close" size={13} />
+            {i18n.t('queue.cancel')}
+          </button>
+        {/if}
       </li>
     {/each}
   </ul>
@@ -114,5 +127,16 @@
   .batch-download {
     align-self: flex-start;
     font-size: 0.72rem;
+  }
+
+  .batch-cancel {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
   }
 </style>

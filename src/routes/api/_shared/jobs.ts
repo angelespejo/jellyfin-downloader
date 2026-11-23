@@ -182,6 +182,10 @@ function outputFor(job: JobRecord): JobOutput | null {
 function toStatus(job: JobRecord): DownloadJobStatus {
   return {
     id: job.id,
+    title: job.plan.movieTitle,
+    filename: job.plan.downloadName,
+    movieId: job.plan.movieId,
+    seriesId: job.plan.seriesId ?? null,
     state: job.state,
     stage: job.stage,
     progress: job.progress,
@@ -894,6 +898,32 @@ class JobManager {
     const job = jobs.get(id)
     if (!job) throw new JobError('Job not found', 404, 'JOB_NOT_FOUND')
     return toStatus(job)
+  }
+
+  async list(options: { state?: 'active' | 'all'; limit?: number } = {}): Promise<{
+    jobs: DownloadJobStatus[]
+    total: number
+    active: number
+  }> {
+    await this.ready()
+    const all = [...jobs.values()]
+    const isActive = (job: JobRecord) => job.state === 'queued' || job.state === 'running'
+    const filtered = options.state === 'all' ? all : all.filter(isActive)
+    const rank = (job: JobRecord) => (job.state === 'running' ? 0 : job.state === 'queued' ? 1 : 2)
+    const sorted = [...filtered].sort((a, b) => {
+      const byRank = rank(a) - rank(b)
+      if (byRank !== 0) return byRank
+      if (a.state === 'queued' && b.state === 'queued') {
+        return queue.indexOf(a.id) - queue.indexOf(b.id)
+      }
+      return Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
+    })
+    const limit = Math.min(100, Math.max(1, options.limit ?? 50))
+    return {
+      jobs: sorted.slice(0, limit).map(toStatus),
+      total: sorted.length,
+      active: all.filter(isActive).length,
+    }
   }
 
   async download(id: string): Promise<{ job: JobRecord; path: string }> {

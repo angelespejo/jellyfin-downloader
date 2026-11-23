@@ -38,14 +38,19 @@ export const GET: RequestHandler = apiRoute(async ({ url }) => {
     return jsonResponse({ error: { code: 'INVALID_REQUEST', message: 'Invalid log level' } }, 400)
   }
   const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit') ?? 200) || 200))
-  const entries = await readLogs({
+  const offset = Math.max(0, Number(url.searchParams.get('offset') ?? 0) || 0)
+  const { entries, total } = await readLogs({
     level: isLogLevel(levelValue) ? levelValue : null,
     date,
     limit,
+    offset,
   })
   const body: LogsResponse = {
     entries,
-    total: entries.length,
+    total,
+    limit,
+    offset,
+    hasMore: offset + entries.length < total,
     date,
     retentionDays: logsRetentionDays(),
   }

@@ -6,12 +6,15 @@
 
 - centered search field, reflected in the URL as `?q=` (debounced, `replace`
   history);
+- server-side search with pages of 48 results and infinite scroll (plus a visible
+  **Load more** button) so large libraries stay responsive;
 - an initial empty state until the user types a query — no cards are rendered
   before searching;
 - a distinct no-results state when the search has no matches;
 - responsive poster grid (`auto-fill` columns, two columns on phones);
-- minimal cards: poster, media-type badge (movie/series/home video), title, year
-  and a floating local-download count badge;
+- minimal cards: poster, media-type badge (movie/series/home video), title, year,
+  a floating local-download count badge and an active-queue badge (clock icon and
+  count, with a native tooltip);
 - selecting a poster opens a media dialog instead of navigating away;
 - the open dialog is reflected in the URL as `?modal=<Jellyfin item id>`, so it
   can be linked directly and reopened with browser navigation.
@@ -23,14 +26,17 @@ the initial catalog page.
 The modal is portaled to `document.body` so its backdrop covers the full
 viewport and paints above the sticky header and footer.
 
-`MovieDialog` is a reusable `ModalShell` dialog with two sticky tabs:
+`MovieDialog` is a reusable `ModalShell` dialog with three sticky tabs:
 
-- **Details** — poster, title, year and runtime; media badges; source selector;
-  output settings (2160p/1440p/1080p/720p/480p/360p); audio and subtitle tracks;
-  local-store status; download button, generated filename and job progress.
+- **Details** — poster, title with year, runtime and selected-version size; media
+  badges with tooltips; source selector; collapsible output, audio and subtitle
+  sections; select/deselect-all controls for audio and subtitles; local-store
+  status; download button, generated filename and job progress (with cancel).
 - **Downloads (N)** — local results for that movie, home video or episode, with
   size, date, download link, configuration badge and a styled delete
   confirmation. A series lists downloads for all of its episodes.
+- **Queue (N)** — every active download, with stage, progress or queue position
+  and a cancel action.
 
 The tabs remain pinned below the modal title while the body scrolls. Output
 files are named `Title (year) - Preset.ext`, or `Title (year) - custom.ext`
@@ -61,7 +67,14 @@ and returns focus to the card.
 
 ## Downloads
 
-`/downloads` lists every object in the server local store:
+`/downloads` shows a **Downloading now** section above the stored files:
+
+- active jobs with title, filename, stage, progress bar or queue position;
+- cancel action with a styled confirmation dialog;
+- when a job finishes it leaves the queue and the stored list refreshes
+  automatically.
+
+The stored section lists every object in the server local store:
 
 - filename and optional movie/year;
 - a link back to the media dialog (`/?modal=<item id>`) when the Jellyfin item
@@ -83,7 +96,8 @@ which environment variable enables it.
 - **Defaults** — output defaults with help text.
 - **Presets** — list, create, edit and delete presets, including their tags.
 - **Storage** — local-store status and a link to `/downloads`.
-- **Logs** — filter, inspect, download and clear persisted server logs.
+- **Logs** — filter, inspect, download and clear persisted server logs, with
+  infinite scroll and a visible **Load more** fallback.
 
 Preset creation/editing uses a modal (`ModalShell`) so the page stays compact.
 Tags are entered as a comma-separated list and default to `default`. Deleting a
@@ -135,12 +149,14 @@ Generic primitives live in `src/lib/components`:
 - `ModalShell` — focus-trapped, animated dialog;
 - `ConfirmDialog` — styled destructive confirmation;
 - `Tabs` — accessible tab list;
+- `CollapsibleSection` — accessible disclosure section;
 - `Field` — label, control and description;
 - `EmptyState`.
 
 App-specific components live in `src/lib/ui`:
 
-- `MovieItem`, `MovieDialog`, `OutputSettings`, `JobPanel`.
+- `MovieItem`, `MovieDialog`, `OutputSettings`, `JobPanel`, `BatchPanel`,
+  `DownloadQueue`.
 
 `OutputSettings` is shared by the movie dialog and the preset editor.
 

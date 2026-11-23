@@ -8,3 +8,11 @@ export {
   type NotificationLevel,
   type NotificationsContext,
 } from './notifications.svelte.js'
+export {
+  cancelJob,
+  getDownloadQueue,
+  refresh as refreshDownloadQueue,
+  startQueue,
+  stopQueue,
+  type CancelResult,
+} from './download-queue.svelte.js'

@@ -112,6 +112,7 @@ export interface MediaSummary {
   videoCodec: string | null
   audioLanguages: string[]
   subtitleCount: number
+  sizeBytes: number | null
 }
 
 export interface MovieSummary {
@@ -201,6 +202,7 @@ export interface SeriesDetail {
   overview: string | null
   imageTag: string | null
   kind: 'series'
+  totalSizeBytes: number | null
   episodes: MovieSummary[]
 }
 
@@ -288,6 +290,9 @@ export interface LogEntry {
 export interface LogsResponse {
   entries: LogEntry[]
   total: number
+  limit: number
+  offset: number
+  hasMore: boolean
   date: string | null
   retentionDays: number
 }
@@ -325,6 +330,10 @@ export interface JobOutput {
 
 export interface DownloadJobStatus {
   id: string
+  title: string
+  filename: string
+  movieId: string
+  seriesId: string | null
   state: JobState
   stage: JobStage
   progress: number | null
@@ -337,6 +346,12 @@ export interface DownloadJobStatus {
   errorCode: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface DownloadQueueResponse {
+  jobs: DownloadJobStatus[]
+  total: number
+  active: number
 }
 
 export interface ApiErrorBody {
@@ -369,6 +384,7 @@ export type IconName =
   | 'film'
   | 'api'
   | 'play'
+  | 'clock'
 
 export interface TabItem {
   id: string

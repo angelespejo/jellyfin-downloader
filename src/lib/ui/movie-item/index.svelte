@@ -6,10 +6,12 @@
   let {
     movie,
     selected = false,
+    queue = null,
     onselect,
   }: {
     movie: MovieSummary
     selected?: boolean
+    queue?: { state: 'queued' | 'running' | 'mixed'; count: number } | null
     onselect: (movie: MovieSummary) => void
   } = $props()
 
@@ -30,6 +32,20 @@
           ? i18n.t('media.homevideo')
           : i18n.t('media.movie')
   )
+  const kindHint = $derived(i18n.t('movies.kindHint', { kind: kindLabel }))
+  const downloadHint = $derived(i18n.t('movies.downloadsCount', { count: movie.downloadCount }))
+  const queueHint = $derived(
+    queue
+      ? i18n.t(
+          queue.state === 'running'
+            ? 'movies.queueRunning'
+            : queue.state === 'mixed'
+              ? 'movies.queueMixed'
+              : 'movies.queueQueued',
+          { count: queue.count }
+        )
+      : ''
+  )
 </script>
 
 <button
@@ -46,14 +62,21 @@
         {movie.title.slice(0, 1).toUpperCase()}
       </span>
     {/if}
-    <span class="movie-kind" data-kind={kind}>{kindLabel}</span>
-    {#if movie.downloadCount > 0}
-      <span
-        class="download-count"
-        title={i18n.t('movies.downloadsCount', { count: movie.downloadCount })}
-      >
-        <Icon name="download" size={12} />
-        {movie.downloadCount}
+    <span class="movie-kind" data-kind={kind} title={kindHint}>{kindLabel}</span>
+    {#if queue || movie.downloadCount > 0}
+      <span class="card-status">
+        {#if queue}
+          <span class="status-pill queue-pill" title={queueHint} aria-label={queueHint}>
+            <Icon name="clock" size={12} />
+            {queue.count}
+          </span>
+        {/if}
+        {#if movie.downloadCount > 0}
+          <span class="status-pill" title={downloadHint} aria-label={downloadHint}>
+            <Icon name="download" size={12} />
+            {movie.downloadCount}
+          </span>
+        {/if}
       </span>
     {/if}
   </span>
@@ -117,10 +140,17 @@
     font-weight: 750;
   }
 
-  .download-count {
+  .card-status {
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.3rem;
+  }
+
+  .status-pill {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
@@ -131,6 +161,11 @@
     font-size: 0.72rem;
     font-weight: 700;
     backdrop-filter: blur(6px);
+  }
+
+  .queue-pill {
+    border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    background: color-mix(in srgb, var(--accent) 24%, rgba(7, 8, 10, 0.82));
   }
 
   .movie-kind {

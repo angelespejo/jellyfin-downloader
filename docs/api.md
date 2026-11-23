@@ -28,6 +28,7 @@ OpenAPI 3.1: `GET /api/v1/openapi.json`. Human-readable page: `GET /api/v1/docs`
 | GET    | `/series/{id}`                        | Series details with its episodes              |
 | GET    | `/artwork/{id}?w=160\|300\|600`       | Proxied poster                                |
 | POST   | `/downloads`                          | Create download                               |
+| GET    | `/downloads?state=&limit=`            | List active jobs or every retained job        |
 | POST   | `/downloads/batch`                    | Create several downloads with one config      |
 | GET    | `/downloads/{id}`                     | State and progress                            |
 | GET    | `/downloads/{id}/file`                | Final file; supports `Range`                  |
@@ -39,7 +40,7 @@ OpenAPI 3.1: `GET /api/v1/openapi.json`. Human-readable page: `GET /api/v1/docs`
 | POST   | `/local-downloads/check`              | Check whether a configuration exists          |
 | GET    | `/presets?tag=`                       | List presets; repeatable tag filter (AND)     |
 | GET    | `/presets/{id}`                       | Get one preset                                |
-| GET    | `/logs?level=&limit=&date=`           | Read persisted server logs                    |
+| GET    | `/logs?level=&limit=&offset=&date=`   | Read persisted server logs                    |
 | GET    | `/logs?download=1`                    | Download a JSONL log file                     |
 | DELETE | `/logs[?date=]`                       | Clear persisted logs                          |
 | GET    | `/settings`                           | Defaults and presets                          |
@@ -142,11 +143,25 @@ or `Title (year) - custom.ext` when no preset was used.
   `processing-video`, `extracting-audio`, `extracting-subtitles`, `packaging`,
   `finalizing`.
 - `progress` is `0..1` or `null`.
+- `title`, `filename`, `movieId` and `seriesId` identify the job without extra
+  requests.
 - `cached` means the result existed in the local store before this request.
 - `stored` means the result is kept for reuse.
 - `output.kind`: `file` or `zip`.
 - `expectedFiles`: number of files in the ZIP (1 for a single file).
 - `errorCode` is a stable code; the UI maps it to a localized message.
+
+## Queue
+
+`GET /downloads?state=active&limit=50` returns `{ jobs, total, active }` with the
+jobs that are queued or running, ordered by queue position. `state=all` includes
+finished jobs retained by the server. Use `DELETE /downloads/{id}` to cancel.
+
+## Logs pagination
+
+`GET /logs?limit=100&offset=0` returns `{ entries, total, limit, offset, hasMore }`.
+Entries are ordered newest first; `offset` skips already loaded entries. Level and
+date filters apply before counting.
 
 ## Download
 

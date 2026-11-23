@@ -64,19 +64,21 @@ light and dark** themes.
 ## What it does
 
 - **Search movies, series and home videos** from Jellyfin, with deep-linkable
-  results and poster cards.
-- **Inspect real media sources**: video resolution, container, audio languages,
-  subtitle tracks and multiple versions.
+  results, poster cards and infinite scroll with server-side pagination.
+- **Inspect real media sources**: video resolution, container, size, audio
+  languages, subtitle tracks and multiple versions.
 - **Build the output you want**: MKV, MP4 or WebM; original, 4K, 2K, 1080p,
   720p, 480p or 360p; copy or re-encode video/audio.
 - **Choose subtitle packaging**: integrated, separate files or burn-in when
-  supported by ffmpeg.
+  supported by ffmpeg, with select-all controls for audio and subtitles.
 - **Download one file or a ZIP** with video, audio and subtitle files split
   independently.
 - **Use hardware encoding** automatically when VideoToolbox, NVENC, QSV or VAAPI
   is available, with a software fallback.
 - **Download series in batches**: select episodes or whole seasons and apply one
   configuration.
+- **Watch the queue**: active downloads appear on the cards and in a dedicated
+  queue tab, and can be cancelled from the dialog or the downloads page.
 - **Reuse local results** with deterministic cache keys and replicate a previous
   configuration from its badge.
 - **Keep notes and logs**: global notifications plus persisted JSONL logs in

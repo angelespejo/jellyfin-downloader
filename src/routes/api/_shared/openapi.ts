@@ -77,6 +77,19 @@ export const openapiDocument = {
       },
     },
     '/downloads': {
+      get: {
+        tags: ['Downloads'],
+        summary: 'List active download jobs',
+        parameters: [
+          {
+            name: 'state',
+            in: 'query',
+            schema: { type: 'string', enum: ['active', 'all'], default: 'active' },
+          },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 50, maximum: 100 } },
+        ],
+        responses: { '200': { description: 'Jobs with title, filename and progress' } },
+      },
       post: {
         tags: ['Downloads'],
         summary: 'Create a download',
@@ -223,6 +236,7 @@ export const openapiDocument = {
           },
           { name: 'date', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 200, maximum: 1000 } },
+          { name: 'offset', in: 'query', schema: { type: 'integer', default: 0, minimum: 0 } },
           { name: 'download', in: 'query', schema: { type: 'string', enum: ['1'] } },
         ],
         responses: { '200': { description: 'Logs or JSONL file' } },

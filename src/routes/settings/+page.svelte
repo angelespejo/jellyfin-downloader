@@ -26,6 +26,7 @@
   import ConfirmDialog from '#lib/components/confirm-dialog.svelte'
   import Tabs from '#lib/components/tabs.svelte'
   import OutputSettings from '#lib/ui/output-settings.svelte'
+  import { infiniteScroll } from '#lib/actions/infinite-scroll.js'
   import type { LocaleMode, ThemeMode } from '#lib/types.js'
 
   let { data }: { data: PageData } = $props()
@@ -73,10 +74,16 @@
   let logsCount = $state(0)
   let logsRetentionDays = $state(0)
   let logsLoading = $state(false)
+  let logsLoadingMore = $state(false)
+  let logsHasMore = $state(false)
+  let logsOffset = $state(0)
+  let logsRequest = 0
   let logsError = $state<string | null>(null)
   let logsLoaded = $state(false)
   let logsClearing = $state(false)
   let pendingClearLogs = $state(false)
+
+  const LOGS_PAGE_SIZE = 100
 
   const tabs = $derived<TabItem[]>([
     { id: 'appearance', label: i18n.t('settings.tab.appearance'), icon: 'sun' },
@@ -227,29 +234,56 @@
     pendingPreset = null
   }
 
-  async function loadLogs(): Promise<void> {
-    logsLoading = true
+  async function loadLogs(reset = true): Promise<void> {
+    const request = ++logsRequest
+    if (reset) {
+      logsLoading = true
+      logsOffset = 0
+      logsHasMore = false
+    } else {
+      logsLoadingMore = true
+    }
     logsError = null
     try {
-      const params = new URLSearchParams({ limit: '200' })
+      const params = new URLSearchParams({
+        limit: String(LOGS_PAGE_SIZE),
+        offset: String(reset ? 0 : logsOffset),
+      })
       if (logLevel) params.set('level', logLevel)
       const response = await fetch(`/api/v1/logs?${params.toString()}`)
       const payload = (await response.json()) as Partial<LogsResponse> & {
         error?: { code?: string; message?: string }
       }
+      if (request !== logsRequest) return
       if (!response.ok) {
         logsError = i18n.error(payload.error?.code, payload.error?.message ?? i18n.t('logs.error'))
         return
       }
-      logs = payload.entries ?? []
+      const entries = payload.entries ?? []
+      if (reset) {
+        logs = entries
+      } else {
+        const seen = new Set(logs.map((entry) => entry.id))
+        logs = [...logs, ...entries.filter((entry) => !seen.has(entry.id))]
+      }
+      logsOffset = (payload.offset ?? 0) + entries.length
       logsCount = payload.total ?? logs.length
+      logsHasMore = payload.hasMore ?? false
       logsRetentionDays = payload.retentionDays ?? 0
       logsLoaded = true
     } catch {
-      logsError = i18n.t('logs.error')
+      if (request === logsRequest) logsError = i18n.t('logs.error')
     } finally {
-      logsLoading = false
+      if (request === logsRequest) {
+        logsLoading = false
+        logsLoadingMore = false
+      }
     }
+  }
+
+  function loadMoreLogs(): void {
+    if (!logsHasMore || logsLoading || logsLoadingMore) return
+    void loadLogs(false)
   }
 
   async function clearLogs(): Promise<void> {
@@ -512,7 +546,12 @@
           </select>
         </Field>
         <div class="logs-actions">
-          <button class="hover-shine" type="button" disabled={logsLoading} onclick={loadLogs}>
+          <button
+            class="hover-shine"
+            type="button"
+            disabled={logsLoading}
+            onclick={() => void loadLogs()}
+          >
             {i18n.t('logs.refresh')}
           </button>
           <button
@@ -582,6 +621,24 @@
             </li>
           {/each}
         </ul>
+        {#if logsHasMore}
+          <div
+            class="logs-more"
+            use:infiniteScroll={{
+              enabled: logsHasMore && !logsLoading && !logsLoadingMore,
+              load: loadMoreLogs,
+            }}
+          >
+            <button
+              type="button"
+              class="ghost hover-shine"
+              disabled={logsLoadingMore}
+              onclick={loadMoreLogs}
+            >
+              {logsLoadingMore ? i18n.t('common.loadingMore') : i18n.t('common.loadMore')}
+            </button>
+          </div>
+        {/if}
       {/if}
     </div>
   </div>
@@ -724,6 +781,12 @@
     margin: 0.6rem 0 0;
     padding: 0;
     list-style: none;
+  }
+
+  .logs-more {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.75rem;
   }
 
   .log-item {

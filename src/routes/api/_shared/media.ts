@@ -259,6 +259,7 @@ export function toMovieSummary(item: JellyfinItem, downloadCount = 0): MovieSumm
           videoCodec,
           audioLanguages: [...new Set(source.audio.map((stream) => stream.language ?? 'und'))],
           subtitleCount: source.subtitles.length,
+          sizeBytes: source.sizeBytes,
         }
       : null,
     downloadCount,
@@ -290,6 +291,11 @@ export function toSeriesDetail(
   episodes: JellyfinItem[],
   counts: Map<string, number>
 ): SeriesDetail {
+  const summaries = episodes.map((episode) => toMovieSummary(episode, counts.get(episode.Id) ?? 0))
+  const totalSizeBytes = summaries.reduce((total, episode) => {
+    const size = episode.media?.sizeBytes ?? 0
+    return size > 0 ? total + size : total
+  }, 0)
   return {
     id: item.Id,
     title: item.Name,
@@ -297,7 +303,8 @@ export function toSeriesDetail(
     overview: item.Overview ?? null,
     imageTag: imageTag(item),
     kind: 'series',
-    episodes: episodes.map((episode) => toMovieSummary(episode, counts.get(episode.Id) ?? 0)),
+    totalSizeBytes: totalSizeBytes > 0 ? totalSizeBytes : null,
+    episodes: summaries,
   }
 }
 

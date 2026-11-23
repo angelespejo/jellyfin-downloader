@@ -2,13 +2,27 @@ import { randomUUID } from 'node:crypto'
 import { appendFile, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { LogEntry, LogLevel } from '#lib/types.js'
-import { isLogLevel, safeLogEvent, safeLogMessage, sanitizeLogContext } from '#lib/logging.js'
+import {
+  isLogLevel,
+  safeLogEvent,
+  safeLogMessage,
+  sanitizeLogContext,
+  selectLogPage,
+} from '#lib/logging.js'
 import { getConfig } from './config.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const FILE_PATTERN = /^(\d{4}-\d{2}-\d{2})\.jsonl$/
 const MAX_READ_BYTES = 2 * 1024 * 1024
 let lastPruneDay = ''
+
+interface FileCache {
+  mtimeMs: number
+  size: number
+  entries: LogEntry[]
+}
+
+const fileCache = new Map<string, FileCache>()
 
 function today(): string {
   return new Date().toISOString().slice(0, 10)
@@ -42,7 +56,10 @@ async function prune(): Promise<void> {
     const file = path.join(root, entry)
     try {
       const info = await stat(file)
-      if (info.mtimeMs < cutoff) await rm(file, { force: true })
+      if (info.mtimeMs < cutoff) {
+        await rm(file, { force: true })
+        fileCache.delete(file)
+      }
     } catch {
       // ignore individual files
     }
@@ -127,12 +144,21 @@ function parseEntries(raw: string): LogEntry[] {
 async function readEntryFile(file: string): Promise<LogEntry[]> {
   try {
     const info = await stat(file)
+    const cached = fileCache.get(file)
+    if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
+      return cached.entries
+    }
+    let entries: LogEntry[]
     if (info.size > MAX_READ_BYTES) {
       const raw = await readFile(file, 'utf8')
-      return parseEntries(raw.slice(-MAX_READ_BYTES))
+      entries = parseEntries(raw.slice(-MAX_READ_BYTES))
+    } else {
+      entries = parseEntries(await readFile(file, 'utf8'))
     }
-    return parseEntries(await readFile(file, 'utf8'))
+    fileCache.set(file, { mtimeMs: info.mtimeMs, size: info.size, entries })
+    return entries
   } catch {
+    fileCache.delete(file)
     return []
   }
 }
@@ -141,23 +167,20 @@ export async function readLogs(input: {
   level?: LogLevel | null
   date?: string | null
   limit?: number
-}): Promise<LogEntry[]> {
+  offset?: number
+}): Promise<{ entries: LogEntry[]; total: number }> {
   const date = validateDate(input.date)
   const files = await listLogFiles()
   const selected = date ? files.filter((file) => file.date === date) : files
-  const limit = Math.max(1, Math.min(input.limit ?? 200, 1000))
-  const entries: LogEntry[] = []
+  const all: LogEntry[] = []
   for (const file of selected) {
     const fileEntries = await readEntryFile(file.file)
     for (let index = fileEntries.length - 1; index >= 0; index -= 1) {
       const entry = fileEntries[index]
-      if (!entry) continue
-      if (input.level && entry.level !== input.level) continue
-      entries.push(entry)
-      if (entries.length >= limit) return entries
+      if (entry) all.push(entry)
     }
   }
-  return entries
+  return selectLogPage(all, input)
 }
 
 export async function deleteLogs(date?: string | null): Promise<number> {
@@ -168,6 +191,7 @@ export async function deleteLogs(date?: string | null): Promise<number> {
   for (const file of selected) {
     try {
       await rm(file.file, { force: true })
+      fileCache.delete(file.file)
       removed += 1
     } catch {
       // ignore

@@ -54,6 +54,7 @@ test('episode summaries keep series metadata and download counts', () => {
   assert.equal(summary.episodeNumber, 2)
   assert.equal(summary.downloadCount, 3)
   assert.equal(summary.media?.maxHeight, 1080)
+  assert.equal(summary.media?.sizeBytes, 1000)
 })
 
 test('series detail includes its episodes', () => {
@@ -70,4 +71,5 @@ test('series detail includes its episodes', () => {
   assert.equal(detail.kind, 'series')
   assert.equal(detail.episodes.length, 1)
   assert.equal(detail.episodes[0]?.downloadCount, 1)
+  assert.equal(detail.totalSizeBytes, 1000)
 })
