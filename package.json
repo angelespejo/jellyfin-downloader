@@ -48,7 +48,7 @@
     "@sveltejs/kit": "~3.4.0",
     "@sveltejs/vite-plugin-svelte": "~7.3.1",
     "@types/node": "~26.6.6",
-    "oxlint": "~1.94.0",
+    "oxlint": "~1.95.0",
     "prettier": "~3.10.1",
     "prettier-plugin-svelte": "~4.2.0",
     "release-it": "~21.1.2",
